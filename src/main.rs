@@ -1,48 +1,40 @@
-use std::io::{self, prelude::*};
-use std::net::TcpListener;
-use std::net::TcpStream;
-use std::sync::{Arc, Mutex};
-use std::thread;
-
+mod data_fetcher;
 mod types;
-use types::types::*;
 
-fn main() {
-    start_server();
-}
+use tokio::sync::Mutex;
+use tracing::{error, info};
+use tracing_subscriber;
+use types::*;
 
-fn start_server() {
+use std::sync::Arc;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    tracing_subscriber::fmt::init();
+    info!("Server started");
+
     let state = Arc::new(Mutex::new(State::new()));
 
-    let group_id = state
-        .lock()
-        .unwrap()
-        .push_group("users", vec![Permission::Login, Permission::GetEntityData]);
-
-    state
-        .lock()
-        .unwrap()
-        .push_user("opeik", "bruz", vec![group_id]);
-    state.lock().unwrap().push_entity([0.0; 3], [0.0; 3]);
-
-    let listener = TcpListener::bind("127.0.0.1:42069").unwrap();
-    println!("Server started...");
-
-    for stream in listener.incoming() {
-        let stream = stream.unwrap();
+    {
         let state = state.clone();
 
-        thread::spawn(move || {
-            handle_connection(state, stream).unwrap();
-        });
+        tokio::spawn(async move {
+            match start_server(state).await {
+                Ok(_) => info!("Server exiting"),
+                Err(e) => error!("Error occurred: {}", e),
+            }
+        })
+        .await?;
     }
+
+    Ok(())
 }
 
-fn handle_connection(state: Arc<Mutex<State>>, mut stream: TcpStream) -> io::Result<()> {
-    let s = state.lock().unwrap();
-
-    let json = serde_json::to_string(&s.entities).unwrap();
-    stream.write(json.as_bytes())?;
+async fn start_server(state: Arc<Mutex<State>>) -> Result<()> {
+    match data_fetcher::fetch_entities(state).await {
+        Ok(_) => info!("Fetched entities from API"),
+        Err(e) => error!("Failed to fetch entities from API: {}", e),
+    };
 
     Ok(())
 }
