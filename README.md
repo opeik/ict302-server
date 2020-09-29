@@ -16,7 +16,7 @@
 Clone repository:
 
 ```
-git clone https://10.51.33.18/alpha-squad/data-collection.git
+git clone https://10.51.33.18/alpha-squad/server.git
 ```
 
 Build:
