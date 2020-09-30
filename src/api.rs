@@ -1,0 +1,85 @@
+use crate::types::*;
+
+use chrono::Duration;
+use nalgebra_glm::{pi, Vec3};
+use reqwest::Url;
+use serde::{Deserialize, Serialize};
+use tokio::sync::Mutex;
+use tracing::info;
+
+use std::sync::Arc;
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Vessel {
+    #[serde(rename = "craft_id")]
+    id: f32,
+    #[serde(rename = "lat")]
+    latitude: f32,
+    #[serde(rename = "lon")]
+    longitude: f32,
+    speed: f32,
+    course: f32,
+    beam: f32,
+    draught: f32,
+    timestamp: String,
+    #[serde(rename = "type")]
+    class: String,
+    #[serde(rename = "subtype")]
+    sub_class: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Response {
+    #[serde(rename = "results")]
+    vessels: Vec<Vessel>,
+    #[serde(rename = "timespan")]
+    time_span: f32,
+    request_time: String,
+    result_length: usize,
+}
+
+fn knots_to_mps(knots: f32) -> f32 {
+    const RATIO: f32 = 0.51444444444;
+
+    knots * RATIO
+}
+
+fn new_entity_from_vessel(v: &Vessel) -> Entity {
+    let radians = (v.course * pi::<f32>()) / 180.0;
+    let speed = knots_to_mps(v.speed);
+
+    Entity::new(
+        Vec3::new(v.longitude, 0.0, v.latitude),
+        Vec3::new(0.0, v.course, 0.0),
+        Vec3::new(speed * radians.sin(), 0.0, speed * radians.cos()),
+    )
+}
+
+pub async fn fetch_entities(state: State, time_span: Duration) -> Result<()> {
+    let url = Url::parse_with_params(
+        "http://localhost:5000",
+        &[("timespan", time_span.num_minutes().to_string())],
+    )?;
+
+    let body = reqwest::get(url).await?.text().await?;
+    let response: Response = serde_json::from_str(&body)?;
+    assert_eq!(response.vessels.len(), response.result_length);
+    info!("Parsed {} entities from response", response.vessels.len());
+
+    if response.vessels.len() != 0 {
+        let mut entities = state.entities.write().await;
+
+        response.vessels.into_iter().for_each(|v| {
+            let entity_id = v.id.to_string();
+
+            entities
+                .entry(entity_id)
+                .and_modify(|e| *e = new_entity_from_vessel(&v))
+                .or_insert(new_entity_from_vessel(&v));
+        });
+
+        info!("Updated state with new entity data");
+    }
+
+    Ok(())
+}
