@@ -16,7 +16,7 @@
 Clone repository:
 
 ```
-git clone https://10.51.33.18/alpha-squad/server.git
+git clone https://github.com/opeik/ict302-server.git
 ```
 
 Build:
