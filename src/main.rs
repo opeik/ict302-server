@@ -5,10 +5,10 @@ mod types;
 
 use types::*;
 
+use std::clone::Clone;
+
 use chrono::Duration;
-use tokio::net::TcpListener;
-use tokio::sync::RwLock;
-use tokio::time::delay_for;
+use tokio::{net::TcpListener, sync::RwLock, time::delay_for};
 use tokio_serde::{formats::Json, Framed};
 use tokio_util::codec::{Framed as CodecFramed, LengthDelimitedCodec};
 use tracing::{debug, error, info};
@@ -47,12 +47,13 @@ async fn main() -> Result<()> {
 
 async fn connection_handler(state: State) -> Result<()> {
     debug!("Connection handler task started");
-    let mut listener = TcpListener::bind("localhost:42069").await?;
-    info!("Listening for connections...");
+    let host = "localhost";
+    let port = 42069;
+    let mut listener = TcpListener::bind(format!("{}:{}", host, port)).await?;
+    info!("Listening for connections on {}:{}...", host, port);
 
     loop {
         let (stream, addr) = listener.accept().await?;
-        info!("Client connected from {:?}", addr);
 
         let length_delimited = CodecFramed::new(stream, LengthDelimitedCodec::new());
         let message_framed: MessageFramed = Framed::new(length_delimited, Json::default());
@@ -60,10 +61,11 @@ async fn connection_handler(state: State) -> Result<()> {
 
         {
             let mut connections = state.connections.write().await;
-            let mut player_count = state.player_count.write().await;
-            let new_player_id = *player_count;
-            *player_count += 1;
+            let mut next_player_id = state.next_player_id.write().await;
+            let new_player_id = *next_player_id;
+            *next_player_id += 1;
             connections.insert(new_player_id, RwLock::new(connection));
+            info!("Player {} connected from {:?}", new_player_id, addr);
         }
     }
 }
@@ -79,15 +81,36 @@ async fn game_loop(state: State) -> Result<()> {
 
         // Send entity data to players.
         {
-            let connections = state.connections.read().await;
-            debug!("Sending data to {} players", connections.len());
+            let cull_handles;
 
-            let handles = connections
-                .iter()
-                .map(|(i, _)| tokio::spawn(net::send_update(state.clone(), *i)))
-                .collect::<Vec<_>>();
+            {
+                let connections = state.connections.read().await;
+                debug!("Sending data to {} players", connections.len());
 
-            futures::future::join_all(handles).await;
+                let handles = connections
+                    .iter()
+                    .map(|(i, _)| tokio::spawn(net::send_update(state.clone(), *i)))
+                    .collect::<Vec<_>>();
+
+                // Wait for everything to be sent.
+                let send_handles = futures::future::join_all(handles).await;
+
+                // Keep track of transmission failures.
+                cull_handles = connections
+                    .iter()
+                    .enumerate()
+                    .map(|(i, (p, _))| {
+                        tokio::spawn(net::reap_dead_connection(
+                            state.clone(),
+                            p.clone(),
+                            send_handles.get(i).unwrap().as_ref().unwrap().is_err(),
+                        ))
+                    })
+                    .collect::<Vec<_>>();
+            }
+
+            // Kill the dead connections once we're done sending and receiving.
+            futures::future::join_all(cull_handles).await;
         }
     }
 }

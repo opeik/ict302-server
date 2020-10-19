@@ -1,8 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use nalgebra_glm::Vec3;
-use tokio::net::TcpStream;
-use tokio::sync::RwLock;
+use tokio::{net::TcpStream, sync::RwLock};
 use tokio_serde::{formats::Json, Framed};
 use tokio_util::codec::{Framed as CodecFramed, LengthDelimitedCodec};
 
@@ -17,7 +16,7 @@ pub type PlayerId = u32;
 pub struct State {
     pub entities: Arc<RwLock<HashMap<String, Entity>>>,
     pub connections: Arc<RwLock<HashMap<PlayerId, RwLock<Connection>>>>,
-    pub player_count: Arc<RwLock<PlayerId>>,
+    pub next_player_id: Arc<RwLock<PlayerId>>,
 }
 pub struct Connection {
     pub framed: MessageFramed,
@@ -50,7 +49,7 @@ pub type MessageFramed = Framed<
     Json<ClientMessage, ServerMessage>,
 >;
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum Error {
     PlayerNotFound { player_id: PlayerId },
 }
@@ -72,7 +71,7 @@ impl State {
         State {
             entities: Arc::new(RwLock::new(HashMap::new())),
             connections: Arc::new(RwLock::new(HashMap::new())),
-            player_count: Arc::new(RwLock::new(0)),
+            next_player_id: Arc::new(RwLock::new(0)),
         }
     }
 }

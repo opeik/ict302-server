@@ -35,23 +35,6 @@ struct Response {
     result_length: usize,
 }
 
-fn knots_to_mps(knots: f32) -> f32 {
-    const RATIO: f32 = 0.51444444444;
-
-    knots * RATIO
-}
-
-fn new_entity_from_vessel(vessel: &Vessel) -> Entity {
-    let radians = (vessel.course * pi::<f32>()) / 180.0;
-    let speed = knots_to_mps(vessel.speed);
-
-    Entity::new(
-        Vec3::new(vessel.longitude, 0.0, vessel.latitude),
-        Vec3::new(0.0, vessel.course, 0.0),
-        Vec3::new(speed * radians.sin(), 0.0, speed * radians.cos()),
-    )
-}
-
 pub async fn fetch_entities(state: State, time_span: Duration) -> Result<()> {
     let url = Url::parse_with_params(
         "http://localhost:5000",
@@ -77,4 +60,21 @@ pub async fn fetch_entities(state: State, time_span: Duration) -> Result<()> {
     info!("Updated state with new entity data");
 
     Ok(())
+}
+
+fn knots_to_mps(knots: f32) -> f32 {
+    const RATIO: f32 = 0.51444444444;
+
+    knots * RATIO
+}
+
+fn new_entity_from_vessel(vessel: &Vessel) -> Entity {
+    let radians = (vessel.course * pi::<f32>()) / 180.0;
+    let speed = knots_to_mps(vessel.speed);
+
+    Entity::new(
+        Vec3::new(vessel.longitude, 0.0, vessel.latitude),
+        Vec3::new(0.0, vessel.course, 0.0),
+        Vec3::new(speed * radians.sin(), 0.0, speed * radians.cos()),
+    )
 }

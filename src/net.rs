@@ -1,7 +1,7 @@
 use crate::types::*;
 
 use futures::SinkExt;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 pub async fn send_update(state: State, player_id: PlayerId) -> Result<()> {
     let entities = state.entities.read().await;
@@ -28,4 +28,19 @@ pub async fn send_update(state: State, player_id: PlayerId) -> Result<()> {
     );
 
     Ok(())
+}
+
+pub async fn reap_dead_connection(state: State, player_id: PlayerId, did_fail: bool) {
+    if !did_fail {
+        return;
+    }
+
+    let mut connections = state.connections.write().await;
+
+    info!(
+        "Player {} has a broken socket, forcing disconnect",
+        player_id
+    );
+
+    connections.remove(&player_id);
 }
