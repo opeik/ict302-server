@@ -7,13 +7,16 @@ version = "0.1.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+cgmath = {version = "0.17.0", features = ["serde"]}
 chrono = "0.4"
 float_duration = {version = "0.3.3", features = ["chrono"]}
 futures = "0.3"
 nalgebra-glm = {version = "0.3", features = ["serde-serialize"]}
+num-traits = "0.2.12"
 reqwest = {version = "0.10", features = ["json"]}
 serde = {version = "1.0", features = ["derive"]}
 serde_json = "1.0"
+splines = {version = "3.4.2", features = ["impl-cgmath"]}
 tokio = {version = "0.2", features = ["full"]}
 tokio-serde = {version = "0.6", features = ["json"]}
 tokio-util = {version = "0.3", features = ["full"]}

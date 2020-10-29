@@ -97,6 +97,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4785bdd1c96b2a846b2bd7cc02e86b6b3dbf14e7e53446c4f54c92a361040822"
 
 [[package]]
+name = "cgmath"
+version = "0.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "283944cdecc44bf0b8dd010ec9af888d3b4f142844fdbe026c20ef68148d6fe7"
+dependencies = [
+ "approx 0.3.2",
+ "num-traits",
+ "rand 0.6.5",
+ "serde",
+]
+
+[[package]]
 name = "chrono"
 version = "0.4.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1174,13 +1186,16 @@ dependencies = [
 name = "server"
 version = "0.1.0"
 dependencies = [
+ "cgmath",
  "chrono",
  "float_duration",
  "futures",
  "nalgebra-glm",
+ "num-traits",
  "reqwest",
  "serde",
  "serde_json",
+ "splines",
  "tokio",
  "tokio-serde",
  "tokio-util",
@@ -1229,6 +1244,15 @@ dependencies = [
  "libc",
  "redox_syscall",
  "winapi 0.3.9",
+]
+
+[[package]]
+name = "splines"
+version = "3.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a8013c4487894e9e7337b62637a92651addee5106a113b652ae225e7371d58ce"
+dependencies = [
+ "cgmath",
 ]
 
 [[package]]
