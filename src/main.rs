@@ -47,10 +47,10 @@ async fn main() -> Result<()> {
 
 async fn connection_handler(state: State) -> Result<()> {
     debug!("Connection handler task started");
-    let host = "localhost";
+    let host = "::";
     let port = 42069;
     let mut listener = TcpListener::bind(format!("{}:{}", host, port)).await?;
-    info!("Listening for connections on {}:{}...", host, port);
+    info!("Listening for connections on [{}]:{}...", host, port);
 
     loop {
         let (stream, addr) = listener.accept().await?;
@@ -72,7 +72,7 @@ async fn connection_handler(state: State) -> Result<()> {
 
 async fn game_loop(state: State) -> Result<()> {
     loop {
-        let delta_time = Duration::seconds(1);
+        let delta_time = Duration::seconds(5);
         delay_for(delta_time.to_std().unwrap()).await;
         debug!("Game loop tick");
 
