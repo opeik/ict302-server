@@ -72,7 +72,7 @@ async fn connection_handler(state: State) -> Result<()> {
 
 async fn game_loop(state: State) -> Result<()> {
     loop {
-        let delta_time = Duration::seconds(5);
+        let delta_time = Duration::seconds(1);
         delay_for(delta_time.to_std().unwrap()).await;
         debug!("Game loop tick");
 
