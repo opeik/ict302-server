@@ -3,7 +3,6 @@ use crate::types::*;
 use chrono::{DateTime, Duration, Utc};
 use lazy_static::lazy_static;
 use libc::c_double;
-use libloading::{Library, Symbol};
 use nalgebra_glm::Vec3;
 use splines::{Interpolation, Key, Spline};
 
@@ -29,15 +28,6 @@ pub struct Prediction {
     pub data: *mut c_double,
     pub length: i32,
 }
-
-type PredictFn<'a> = Symbol<
-    'a,
-    unsafe extern "C" fn(
-        settings: *const Settings,
-        history: *const History,
-        result: *const Prediction,
-    ) -> c_double,
->;
 
 impl Settings {
     pub fn new(lag: i32, seed: i32, stopping_criteria: c_double, log_results: u8) -> Self {
@@ -130,11 +120,13 @@ pub async fn predict_entity(
     ))
 }
 
-lazy_static! {
-    static ref PREDICTOR_LIB: Library =
-        Library::new("predictor.module").expect("Failed to load predictor library");
-    static ref PREDICTOR_FN: PredictFn<'static> =
-        unsafe { PREDICTOR_LIB.get(b"PredictTimeSeries").unwrap() };
+#[link(name = "gpforecast")]
+extern "C" {
+    fn predict(
+        settings: *const Settings,
+        history: *const History,
+        result: *const Prediction,
+    ) -> c_double;
 }
 
 pub fn run_prediction(history: Vec<f64>, num_predictions: usize) -> Result<(Vec<f64>, f64)> {
@@ -147,7 +139,7 @@ pub fn run_prediction(history: Vec<f64>, num_predictions: usize) -> Result<(Vec<
     let prediction_ffi = Prediction::new(&mut result_ffi);
 
     unsafe {
-        let error = PREDICTOR_FN(&settings_ffi, &history_ffi, &prediction_ffi);
+        let error = predict(&settings_ffi, &history_ffi, &prediction_ffi);
         Ok((result_ffi, error))
     }
 }
