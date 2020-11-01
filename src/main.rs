@@ -26,13 +26,13 @@ async fn main() -> Result<()> {
 
     let t1 = thread::spawn(move || {
         let history = (0..=4).map(f64::from).collect::<Vec<_>>();
-        let (prediction, error) = prediction::run_prediction(history.clone(), 1).unwrap();
+        let (prediction, error) = prediction::run_prediction(history.clone(), 3).unwrap();
         info!("{:?} {} ", prediction, error);
     });
 
     let t2 = thread::spawn(move || {
         let history = (0..=4).map(f64::from).collect::<Vec<_>>();
-        let (prediction, error) = prediction::run_prediction(history.clone(), 1).unwrap();
+        let (prediction, error) = prediction::run_prediction(history.clone(), 3).unwrap();
         info!("{:?} {} ", prediction, error);
     });
 

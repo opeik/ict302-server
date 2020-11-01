@@ -109,8 +109,8 @@ pub async fn predict_entity(
         history_z.push(spline_z.sample(time).unwrap() * FACTOR);
     }
 
-    let (predictions_x, error_x) = run_prediction(history_x, 1)?;
-    let (predictions_z, error_z) = run_prediction(history_z, 1)?;
+    let (predictions_x, error_x) = run_prediction(history_x, 3)?;
+    let (predictions_z, error_z) = run_prediction(history_z, 3)?;
     let x = predictions_x.get(0).unwrap() / FACTOR;
     let z = predictions_z.get(0).unwrap() / FACTOR;
 
