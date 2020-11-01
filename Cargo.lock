@@ -1194,6 +1194,7 @@ dependencies = [
  "chrono",
  "float_duration",
  "futures",
+ "lazy_static",
  "libc",
  "libloading",
  "nalgebra-glm",

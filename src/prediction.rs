@@ -1,6 +1,7 @@
 use crate::types::*;
 
 use chrono::{DateTime, Duration, Utc};
+use lazy_static::lazy_static;
 use libc::c_double;
 use libloading::{Library, Symbol};
 use nalgebra_glm::Vec3;
@@ -129,8 +130,14 @@ pub async fn predict_entity(
     ))
 }
 
+lazy_static! {
+    static ref PREDICTOR_LIB: Library =
+        Library::new("predictor.module").expect("Failed to load predictor library");
+    static ref PREDICTOR_FN: PredictFn<'static> =
+        unsafe { PREDICTOR_LIB.get(b"PredictTimeSeries").unwrap() };
+}
+
 pub fn run_prediction(history: Vec<f64>, num_predictions: usize) -> Result<(Vec<f64>, f64)> {
-    let predictor = Library::new("predictor.module").expect("Failed to load predictor library");
     let settings_ffi = Settings::new(1, -1, 15.0, 0);
 
     // Create the prediction result vector.
@@ -140,8 +147,7 @@ pub fn run_prediction(history: Vec<f64>, num_predictions: usize) -> Result<(Vec<
     let prediction_ffi = Prediction::new(&mut result_ffi);
 
     unsafe {
-        let predict_fn: PredictFn = predictor.get(b"PredictTimeSeries")?;
-        let error = predict_fn(&settings_ffi, &history_ffi, &prediction_ffi);
+        let error = PREDICTOR_FN(&settings_ffi, &history_ffi, &prediction_ffi);
         Ok((result_ffi, error))
     }
 }
