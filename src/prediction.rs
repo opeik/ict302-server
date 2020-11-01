@@ -122,7 +122,7 @@ pub async fn predict_entity(
 
 #[link(name = "gpforecast")]
 extern "C" {
-    fn predict(
+    fn PredictTimeSeries(
         settings: *const Settings,
         history: *const History,
         result: *const Prediction,
@@ -139,7 +139,7 @@ pub fn run_prediction(history: Vec<f64>, num_predictions: usize) -> Result<(Vec<
     let prediction_ffi = Prediction::new(&mut result_ffi);
 
     unsafe {
-        let error = predict(&settings_ffi, &history_ffi, &prediction_ffi);
+        let error = PredictTimeSeries(&settings_ffi, &history_ffi, &prediction_ffi);
         Ok((result_ffi, error))
     }
 }
