@@ -6,11 +6,16 @@ use tokio_serde::{formats::Json, Framed};
 use tokio_util::codec::{Framed as CodecFramed, LengthDelimitedCodec};
 
 use std::collections::HashMap;
+use std::error::Error as StdError;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
+pub type Result<T> = std::result::Result<T, Box<dyn StdError + Send + Sync>>;
 pub type PlayerId = u32;
+
+fn is_true(v: &bool) -> bool {
+    *v
+}
 
 #[derive(Clone)]
 pub struct State {
@@ -22,10 +27,6 @@ pub struct State {
 pub struct Connection {
     pub framed: MessageFramed,
     pub addr: SocketAddr,
-}
-
-fn is_true(v: &bool) -> bool {
-    *v
 }
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
@@ -78,7 +79,7 @@ pub enum Error {
     PlayerNotFound { player_id: PlayerId },
 }
 
-impl std::error::Error for Error {}
+impl StdError for Error {}
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
