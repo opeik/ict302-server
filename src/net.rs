@@ -16,6 +16,7 @@ pub async fn send_update(state: State, player_id: PlayerId) -> Result<()> {
         .await;
 
     let server_update_data = ServerUpdateData {
+        player_id: player_id,
         entities: entities.clone(),
         players: players.clone(),
     };

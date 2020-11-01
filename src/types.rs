@@ -42,6 +42,7 @@ pub struct ClientUpdateData {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ServerUpdateData {
+    pub player_id: PlayerId,
     pub entities: HashMap<String, Entity>,
     pub players: HashMap<PlayerId, Player>,
 }
