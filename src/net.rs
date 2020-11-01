@@ -64,6 +64,7 @@ pub async fn receive_update(state: State, player_id: PlayerId) -> Result<()> {
                         .get_mut(&player_id)
                         .ok_or(Error::PlayerNotFound { player_id })?;
                     player.position = v.position;
+                    player.angles = v.angles;
                 }
                 ClientMessage::Disconnect => {
                     info!("Player {} disconnected", player_id);

@@ -98,7 +98,10 @@ pub async fn new_player(state: State, stream: TcpStream, addr: SocketAddr) -> Re
     *next_player_id += 1;
 
     connections.insert(new_player_id, RwLock::new(connection));
-    players.insert(new_player_id, Player::new(Vec3::new(0.0, 0.0, 0.0)));
+    players.insert(
+        new_player_id,
+        Player::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)),
+    );
     info!("Player {} connected from {:?}", new_player_id, addr);
 
     Ok(())

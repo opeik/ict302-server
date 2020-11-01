@@ -34,10 +34,12 @@ pub struct Entity {
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
 pub struct Player {
     pub position: Vec3,
+    pub angles: Vec3,
 }
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
 pub struct ClientUpdateData {
     pub position: Vec3,
+    pub angles: Vec3,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -104,8 +106,8 @@ impl Entity {
 }
 
 impl Player {
-    pub fn new(position: Vec3) -> Self {
-        Self { position }
+    pub fn new(position: Vec3, angles: Vec3) -> Self {
+        Self { position, angles }
     }
 }
 
