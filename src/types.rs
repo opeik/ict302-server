@@ -15,6 +15,7 @@ pub type PlayerId = u32;
 #[derive(Clone)]
 pub struct State {
     pub entities: Arc<RwLock<HashMap<String, Entity>>>,
+    pub players: Arc<RwLock<HashMap<PlayerId, Player>>>,
     pub connections: Arc<RwLock<HashMap<PlayerId, RwLock<Connection>>>>,
     pub next_player_id: Arc<RwLock<PlayerId>>,
 }
@@ -31,15 +32,28 @@ pub struct Entity {
 }
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
+pub struct Player {
+    pub position: Vec3,
+}
+#[derive(Copy, Clone, Debug, Deserialize, Serialize)]
+pub struct ClientUpdateData {
+    pub position: Vec3,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ServerUpdateData {
+    pub entities: HashMap<String, Entity>,
+    pub players: HashMap<PlayerId, Player>,
+}
+
+#[derive(Copy, Clone, Debug, Deserialize, Serialize)]
 pub enum ClientMessage {
-    Hello,
-    Acknowledged,
+    Update(ClientUpdateData),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum ServerMessage {
-    Hello,
-    Update(HashMap<String, Entity>),
+    Update(ServerUpdateData),
 }
 
 pub type MessageFramed = Framed<
@@ -68,8 +82,9 @@ impl std::fmt::Display for Error {
 
 impl State {
     pub fn new() -> Self {
-        State {
+        Self {
             entities: Arc::new(RwLock::new(HashMap::new())),
+            players: Arc::new(RwLock::new(HashMap::new())),
             connections: Arc::new(RwLock::new(HashMap::new())),
             next_player_id: Arc::new(RwLock::new(0)),
         }
@@ -78,7 +93,7 @@ impl State {
 
 impl Entity {
     pub fn new(position: Vec3, angles: Vec3, velocity: Vec3) -> Self {
-        Entity {
+        Self {
             position,
             angles,
             velocity,
@@ -86,8 +101,14 @@ impl Entity {
     }
 }
 
+impl Player {
+    pub fn new(position: Vec3) -> Self {
+        Self { position }
+    }
+}
+
 impl Connection {
     pub fn new(framed: MessageFramed, addr: SocketAddr) -> Self {
-        Connection { framed, addr }
+        Self { framed, addr }
     }
 }
