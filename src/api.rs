@@ -1,6 +1,6 @@
 use crate::types::*;
 
-use chrono::Duration;
+use chrono::{DateTime, Duration, NaiveDateTime, Utc};
 use nalgebra_glm::{pi, Vec3};
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
@@ -47,14 +47,30 @@ pub async fn fetch_entities(state: State, time_span: Duration) -> Result<()> {
     info!("Parsed {} entities from response", response.vessels.len());
 
     let mut entities = state.entities.write().await;
+    let mut history = state.history.write().await;
 
+    // Load all the entities into history.
     response.vessels.into_iter().for_each(|v| {
         let entity_id = v.id.to_string();
 
-        entities
+        history
             .entry(entity_id)
-            .and_modify(|e| *e = new_entity_from_vessel(&v))
-            .or_insert(new_entity_from_vessel(&v));
+            .or_default()
+            .push(new_entity_from_vessel(&v));
+    });
+
+    // Sort the history by time.
+    history.iter_mut().for_each(|(_, v)| {
+        v.sort_by(|a, b| a.date_time.partial_cmp(&b.date_time).unwrap());
+    });
+
+    // Use the last known entity data.
+    history.iter().for_each(|(k, v)| {
+        let latest = v.last().unwrap();
+        entities
+            .entry(k.clone())
+            .and_modify(|e| *e = latest.clone())
+            .or_insert(latest.clone());
     });
 
     info!("Updated state with new entity data");
@@ -71,10 +87,16 @@ fn knots_to_mps(knots: f32) -> f32 {
 fn new_entity_from_vessel(vessel: &Vessel) -> Entity {
     let radians = (vessel.course * pi::<f32>()) / 180.0;
     let speed = knots_to_mps(vessel.speed);
+    let date_time = DateTime::<Utc>::from_utc(
+        NaiveDateTime::parse_from_str(&vessel.timestamp, "%F %T").unwrap(),
+        Utc,
+    );
 
     Entity::new(
         Vec3::new(vessel.longitude, 0.0, vessel.latitude),
         Vec3::new(0.0, vessel.course, 0.0),
         Vec3::new(speed * radians.sin(), 0.0, speed * radians.cos()),
+        date_time,
+        false,
     )
 }

@@ -11,7 +11,7 @@ pub async fn send_update(state: State, player_id: PlayerId) -> Result<()> {
     let connections = state.connections.read().await;
     let mut connection = connections
         .get(&player_id)
-        .ok_or(Error::PlayerNotFound { player_id })?
+        .ok_or("Player not found")?
         .write()
         .await;
 
@@ -44,7 +44,7 @@ pub async fn receive_update(state: State, player_id: PlayerId) -> Result<()> {
     let connections = state.connections.read().await;
     let mut connection = connections
         .get(&player_id)
-        .ok_or(Error::PlayerNotFound { player_id })?
+        .ok_or("Player not found")?
         .write()
         .await;
 
@@ -60,9 +60,7 @@ pub async fn receive_update(state: State, player_id: PlayerId) -> Result<()> {
             Ok(value) => match value {
                 ClientMessage::Update(v) => {
                     let mut players = state.players.write().await;
-                    let player = players
-                        .get_mut(&player_id)
-                        .ok_or(Error::PlayerNotFound { player_id })?;
+                    let player = players.get_mut(&player_id).ok_or("Player not found")?;
                     player.position = v.position;
                     player.angles = v.angles;
                 }

@@ -111,6 +111,7 @@ dependencies = [
  "libc",
  "num-integer",
  "num-traits",
+ "serde",
  "time",
  "winapi 0.3.9",
 ]
@@ -1199,6 +1200,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "splines",
  "tokio",
  "tokio-serde",
  "tokio-util",
@@ -1248,6 +1250,12 @@ dependencies = [
  "redox_syscall",
  "winapi 0.3.9",
 ]
+
+[[package]]
+name = "splines"
+version = "3.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a8013c4487894e9e7337b62637a92651addee5106a113b652ae225e7371d58ce"
 
 [[package]]
 name = "syn"

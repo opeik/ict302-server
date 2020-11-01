@@ -6,6 +6,7 @@ use tokio::{net::TcpStream, sync::RwLock};
 use tokio_serde::{formats::Json, Framed};
 use tokio_util::codec::{Framed as CodecFramed, LengthDelimitedCodec};
 
+use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::error::Error as StdError;
 use std::net::SocketAddr;
@@ -21,11 +22,12 @@ fn is_true(v: &bool) -> bool {
 #[derive(Clone)]
 pub struct State {
     pub entities: Arc<RwLock<HashMap<String, Entity>>>,
+    pub history: Arc<RwLock<HashMap<String, Vec<Entity>>>>,
     pub players: Arc<RwLock<HashMap<PlayerId, Player>>>,
     pub connections: Arc<RwLock<HashMap<PlayerId, RwLock<Connection>>>>,
     pub next_player_id: Arc<RwLock<PlayerId>>,
-    pub predictor: Arc<Library>,
 }
+
 pub struct Connection {
     pub framed: MessageFramed,
     pub addr: SocketAddr,
@@ -36,6 +38,8 @@ pub struct Entity {
     pub position: Vec3,
     pub angles: Vec3,
     pub velocity: Vec3,
+    #[serde(skip_serializing)]
+    pub date_time: DateTime<Utc>,
     #[serde(skip_serializing_if = "is_true")]
     pub is_interpolated: bool,
 }
@@ -76,44 +80,32 @@ pub type MessageFramed = Framed<
     Json<ClientMessage, ServerMessage>,
 >;
 
-#[derive(Debug, Copy, Clone)]
-pub enum Error {
-    PlayerNotFound { player_id: PlayerId },
-}
-
-impl StdError for Error {}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Error::PlayerNotFound { player_id } => {
-                write!(f, "player with id {} not found", player_id)
-            }
-        }
-    }
-}
-
 impl State {
     pub fn new() -> Self {
         Self {
             entities: Arc::new(RwLock::new(HashMap::new())),
+            history: Arc::new(RwLock::new(HashMap::new())),
             players: Arc::new(RwLock::new(HashMap::new())),
             connections: Arc::new(RwLock::new(HashMap::new())),
             next_player_id: Arc::new(RwLock::new(0)),
-            predictor: Arc::new(
-                Library::new("predictor.module").expect("Failed to load predictor library"),
-            ),
         }
     }
 }
 
 impl Entity {
-    pub fn new(position: Vec3, angles: Vec3, velocity: Vec3) -> Self {
+    pub fn new(
+        position: Vec3,
+        angles: Vec3,
+        velocity: Vec3,
+        date_time: DateTime<Utc>,
+        is_interpolated: bool,
+    ) -> Self {
         Self {
             position,
             angles,
             velocity,
-            is_interpolated: false,
+            date_time,
+            is_interpolated,
         }
     }
 }

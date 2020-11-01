@@ -23,6 +23,12 @@ async fn main() -> Result<()> {
     // Setup the initial server state.
     let state = State::new();
 
+    let history = (0..=4).map(f64::from).collect::<Vec<_>>();
+    let (prediction, error) = prediction::run_prediction(history.clone(), 1)?;
+    info!("{:?} {} ", prediction, error);
+    let (prediction, error) = prediction::run_prediction(history.clone(), 1)?;
+    info!("{:?} {} ", prediction, error);
+
     // Fetch the initial entity state from the API.
     match api::fetch_entities(state.clone(), Duration::days(1)).await {
         Ok(_) => info!("Fetched initial entity data from API"),

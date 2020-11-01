@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 
 use crate::net;
+use crate::prediction;
 use crate::types::*;
 
 use chrono::Duration;
@@ -9,7 +10,7 @@ use nalgebra_glm::Vec3;
 use tokio::{net::TcpStream, sync::RwLock};
 use tokio_serde::{formats::Json, Framed};
 use tokio_util::codec::{Framed as CodecFramed, LengthDelimitedCodec};
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 pub async fn advance_simulation(state: State, delta_time: Duration) -> Result<()> {
     // Update entity positions.
@@ -17,8 +18,30 @@ pub async fn advance_simulation(state: State, delta_time: Duration) -> Result<()
     let mut entities = state.entities.write().await;
     debug!("Updating {} entity positions", entities.len());
 
-    entities.iter_mut().for_each(|(_, v)| {
-        v.position = v.position + (v.velocity * delta_time_float);
+    let prediction_handles = entities
+        .iter()
+        .map(|(k, v)| {
+            tokio::spawn(prediction::predict_entity(
+                state.clone(),
+                k.to_string(),
+                v.date_time,
+                Duration::minutes(90),
+                Duration::minutes(1),
+            ))
+        })
+        .collect::<Vec<_>>();
+
+    let predictions = futures::future::join_all(prediction_handles).await;
+
+    predictions.iter().enumerate().for_each(|(i, v)| match v {
+        Ok(v) => {
+            let keys = entities.keys().collect::<Vec<_>>();
+            let (prediction, error) = v.as_ref().unwrap();
+            let key = keys.get(i).unwrap().to_string();
+            let mut entity = entities.get_mut(&key).unwrap();
+            entity.position = *prediction;
+        }
+        Err(e) => error!("Failed to predict: {}", e),
     });
 
     Ok(())
