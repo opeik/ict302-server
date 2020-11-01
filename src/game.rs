@@ -18,7 +18,15 @@ pub async fn advance_simulation(state: State, delta_time: Duration) -> Result<()
     debug!("Updating {} entity positions", entities.len());
 
     entities.iter_mut().for_each(|(_, v)| {
-        v.position = v.position + (v.velocity * delta_time_float);
+        let distance = (v.velocity.x*v.velocity.x + v.velocity.z*v.velocity.z).sqrt();
+        let r : f32 = 63711000.0; // Earth Radius in m
+        let lat2 = (v.position.z.to_radians().sin() * (distance / r).cos()
+                + v.position.z.to_radians().cos() * (distance / r).sin() * v.angles.y.to_radians().cos()).asin();
+        let lon2 = v.position.x.to_radians()
+                + (v.angles.y.to_radians().sin() * (distance / r).sin() * v.position.z.to_radians().cos()).atan2((distance / r).cos()
+                - v.position.z.to_radians().sin() * lat2.sin());
+        v.position.z = lat2.to_degrees();
+        v.position.x = lon2.to_degrees();
     });
 
     Ok(())

@@ -70,6 +70,7 @@ fn knots_to_mps(knots: f32) -> f32 {
 
 fn new_entity_from_vessel(vessel: &Vessel) -> Entity {
     let radians = (vessel.course * pi::<f32>()) / 180.0;
+    // Apply hacked acceleration here to match mock api
     let speed = knots_to_mps(vessel.speed);
 
     Entity::new(
