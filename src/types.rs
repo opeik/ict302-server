@@ -24,11 +24,17 @@ pub struct Connection {
     pub addr: SocketAddr,
 }
 
+fn is_true(v: &bool) -> bool {
+    *v
+}
+
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
 pub struct Entity {
     pub position: Vec3,
     pub angles: Vec3,
     pub velocity: Vec3,
+    #[serde(skip_serializing_if = "is_true")]
+    pub is_interpolated: bool,
 }
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
@@ -101,6 +107,7 @@ impl Entity {
             position,
             angles,
             velocity,
+            is_interpolated: false,
         }
     }
 }

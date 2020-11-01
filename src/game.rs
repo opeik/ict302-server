@@ -66,22 +66,41 @@ pub async fn send_updates(state: State) -> Result<()> {
 }
 
 pub async fn receive_updates(state: State) -> Result<()> {
-    let connections = state.connections.read().await;
+    let cull_handles;
 
-    if connections.len() == 0 {
-        return Ok(());
+    {
+        let connections = state.connections.read().await;
+
+        if connections.len() == 0 {
+            return Ok(());
+        }
+
+        debug!("Receiving data from {} players", connections.len());
+
+        // Start receiving.
+        let handles = connections
+            .iter()
+            .map(|(i, _)| tokio::spawn(net::receive_update(state.clone(), *i)))
+            .collect::<Vec<_>>();
+
+        // Wait for everything to be received.
+        let receive_handles = futures::future::join_all(handles).await;
+
+        // Keep track of transmission failures.
+        cull_handles = connections
+            .iter()
+            .enumerate()
+            .map(|(i, (p, _))| {
+                tokio::spawn(net::reap_dead_connection(
+                    state.clone(),
+                    p.clone(),
+                    receive_handles.get(i).unwrap().as_ref().unwrap().is_err(),
+                ))
+            })
+            .collect::<Vec<_>>();
     }
 
-    debug!("Receiving data from {} players", connections.len());
-
-    // Start receiving.
-    let handles = connections
-        .iter()
-        .map(|(i, _)| tokio::spawn(net::receive_update(state.clone(), *i)))
-        .collect::<Vec<_>>();
-
-    // Wait for everything to be received.
-    futures::future::join_all(handles).await;
+    futures::future::join_all(cull_handles).await;
 
     Ok(())
 }
