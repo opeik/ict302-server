@@ -22,7 +22,6 @@ async fn main() -> Result<()> {
 
     // Setup the initial server state.
     let state = State::new();
-    prediction::run_prediction(state.clone()).await?;
 
     // Fetch the initial entity state from the API.
     match api::fetch_entities(state.clone(), Duration::days(1)).await {

@@ -2,11 +2,10 @@ use crate::types::*;
 
 use libc::c_double;
 use libloading::Symbol;
-use tracing::info;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
-pub struct PredictorSettings {
+pub struct Settings {
     pub lag: i32,
     pub seed: i32,
     pub stopping_criteria: c_double,
@@ -15,47 +14,73 @@ pub struct PredictorSettings {
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
-pub struct TimeSeriesData {
+pub struct History {
     pub data: *const c_double,
+    pub length: i32,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug)]
+pub struct Prediction {
+    pub data: *mut c_double,
     pub length: i32,
 }
 
 pub type PredictFn<'a> = Symbol<
     'a,
     unsafe extern "C" fn(
-        settings: *const PredictorSettings,
-        history: *const TimeSeriesData,
-        prediction: *mut TimeSeriesData,
+        settings: *const Settings,
+        history: *const History,
+        result: *const Prediction,
     ) -> c_double,
 >;
 
-pub async fn run_prediction(state: State) -> Result<()> {
-    let settings = PredictorSettings {
-        lag: 1,
-        seed: -1,
-        stopping_criteria: 15.0,
-        log_results: 0,
-    };
+impl Settings {
+    pub fn new(lag: i32, seed: i32, stopping_criteria: c_double, log_results: u8) -> Self {
+        Self {
+            lag,
+            seed,
+            stopping_criteria,
+            log_results,
+        }
+    }
+}
 
-    // Historic lat/long data
-    let series = vec![0.0, 1.0, 2.0, 3.0, 4.0];
-    // The prediction results
-    let mut result = vec![0.0; 3];
+impl History {
+    pub fn new(v: &Vec<f64>) -> Self {
+        Self {
+            data: v.as_ptr(),
+            length: v.len() as i32,
+        }
+    }
+}
 
-    let history = TimeSeriesData {
-        data: series.as_ptr(),
-        length: series.len() as i32,
-    };
+impl Prediction {
+    pub fn new(v: &mut Vec<f64>) -> Self {
+        Self {
+            data: v.as_mut_ptr(),
+            length: v.len() as i32,
+        }
+    }
+}
 
-    let mut prediction = TimeSeriesData {
-        data: result.as_mut_ptr(),
-        length: result.len() as i32,
-    };
+pub async fn run_prediction(
+    state: State,
+    history: &Vec<f64>,
+    num_predictions: usize,
+) -> Result<(Vec<f64>, f64)> {
+    let settings = Settings::new(1, -1, 15.0, 0);
+
+    // Create the prediction result vector.
+    let mut result = vec![0.0; num_predictions];
+    // Create the FFI structs.
+    let history = History::new(&history);
+    let prediction = Prediction::new(&mut result);
 
     unsafe {
         let predict_fn: PredictFn = state.predictor.get(b"PredictTimeSeries")?;
-        let error = predict_fn(&settings, &history, &mut prediction);
-        info!("Prediction: {:?}, error: {}", result, error);
-        Ok(())
+        let error = predict_fn(&settings, &history, &prediction);
+
+        Ok((result, error))
     }
 }
