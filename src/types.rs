@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use libloading::Library;
 use nalgebra_glm::Vec3;
 use tokio::{net::TcpStream, sync::RwLock};
 use tokio_serde::{formats::Json, Framed};
@@ -23,6 +24,7 @@ pub struct State {
     pub players: Arc<RwLock<HashMap<PlayerId, Player>>>,
     pub connections: Arc<RwLock<HashMap<PlayerId, RwLock<Connection>>>>,
     pub next_player_id: Arc<RwLock<PlayerId>>,
+    pub predictor: Arc<Library>,
 }
 pub struct Connection {
     pub framed: MessageFramed,
@@ -98,6 +100,9 @@ impl State {
             players: Arc::new(RwLock::new(HashMap::new())),
             connections: Arc::new(RwLock::new(HashMap::new())),
             next_player_id: Arc::new(RwLock::new(0)),
+            predictor: Arc::new(
+                Library::new("predictor.module").expect("Failed to load predictor library"),
+            ),
         }
     }
 }
