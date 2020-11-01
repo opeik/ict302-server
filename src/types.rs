@@ -48,6 +48,7 @@ pub struct ServerUpdateData {
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
 pub enum ClientMessage {
+    Disconnect,
     Update(ClientUpdateData),
 }
 

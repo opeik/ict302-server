@@ -29,6 +29,11 @@ pub async fn send_updates(state: State) -> Result<()> {
 
     {
         let connections = state.connections.read().await;
+
+        if connections.len() == 0 {
+            return Ok(());
+        }
+
         debug!("Sending data to {} players", connections.len());
 
         // Start sending.
@@ -62,7 +67,12 @@ pub async fn send_updates(state: State) -> Result<()> {
 
 pub async fn receive_updates(state: State) -> Result<()> {
     let connections = state.connections.read().await;
-    debug!("Sending data to {} players", connections.len());
+
+    if connections.len() == 0 {
+        return Ok(());
+    }
+
+    debug!("Receiving data from {} players", connections.len());
 
     // Start receiving.
     let handles = connections
