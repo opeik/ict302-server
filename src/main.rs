@@ -7,7 +7,6 @@ mod types;
 use types::*;
 
 use std::clone::Clone;
-use std::thread;
 
 use chrono::Duration;
 use tokio::{net::TcpListener, time::delay_for};
@@ -23,21 +22,6 @@ async fn main() -> Result<()> {
 
     // Setup the initial server state.
     let state = State::new();
-
-    let t1 = thread::spawn(move || {
-        let history = (0..=4).map(f64::from).collect::<Vec<_>>();
-        let (prediction, error) = prediction::run_prediction(history.clone(), 3).unwrap();
-        info!("{:?} {} ", prediction, error);
-    });
-
-    let t2 = thread::spawn(move || {
-        let history = (0..=4).map(f64::from).collect::<Vec<_>>();
-        let (prediction, error) = prediction::run_prediction(history.clone(), 3).unwrap();
-        info!("{:?} {} ", prediction, error);
-    });
-
-    t1.join();
-    t2.join();
 
     // Fetch the initial entity state from the API.
     match api::fetch_entities(state.clone(), Duration::days(1)).await {

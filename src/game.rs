@@ -4,8 +4,7 @@ use crate::net;
 use crate::prediction;
 use crate::types::*;
 
-use chrono::Duration;
-use float_duration::FloatDuration;
+use chrono::{Duration, Utc};
 use nalgebra_glm::Vec3;
 use tokio::{net::TcpStream, sync::RwLock};
 use tokio_serde::{formats::Json, Framed};
@@ -14,8 +13,10 @@ use tracing::{debug, error, info};
 
 pub async fn advance_simulation(state: State, delta_time: Duration) -> Result<()> {
     // Update entity positions.
-    let delta_time_float = FloatDuration::from_chrono(delta_time).as_seconds() as f32;
     let mut entities = state.entities.write().await;
+    let mut current_time = state.current_time.write().await;
+    *current_time = *current_time + delta_time;
+
     debug!("Updating {} entity positions", entities.len());
 
     let prediction_handles = entities
@@ -24,9 +25,10 @@ pub async fn advance_simulation(state: State, delta_time: Duration) -> Result<()
             tokio::spawn(prediction::predict_entity(
                 state.clone(),
                 k.to_string(),
-                v.date_time,
+                *current_time + Duration::minutes(1),
                 Duration::minutes(90),
                 Duration::minutes(1),
+                prediction::PredictionKind::GeneticAlgorithm,
             ))
         })
         .collect::<Vec<_>>();

@@ -1,6 +1,5 @@
 [package]
 authors = ["Sandro Stikić <sandro@stikic.me>"]
-build = "build.rs"
 edition = "2018"
 name = "server"
 version = "0.1.0"
@@ -13,6 +12,7 @@ float_duration = {version = "0.3.3", features = ["chrono"]}
 futures = "0.3"
 lazy_static = "1.4.0"
 libc = "0.2"
+libloading = "0.6.5"
 nalgebra-glm = {version = "0.3", features = ["serde-serialize"]}
 reqwest = {version = "0.10", features = ["json"]}
 serde = {version = "1.0", features = ["derive"]}

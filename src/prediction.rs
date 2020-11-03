@@ -3,8 +3,17 @@ use crate::types::*;
 use chrono::{DateTime, Duration, Utc};
 use lazy_static::lazy_static;
 use libc::c_double;
+use libloading::{Library, Symbol};
 use nalgebra_glm::Vec3;
 use splines::{Interpolation, Key, Spline};
+use tracing::{debug, error, info};
+
+lazy_static! {
+    static ref PREDICTOR_LIB: Library =
+        Library::new("predictor.module").expect("Failed to load predictor library");
+    static ref PREDICTOR_FN: PredictFn<'static> =
+        unsafe { PREDICTOR_LIB.get(b"PredictTimeSeries").unwrap() };
+}
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
@@ -28,6 +37,15 @@ pub struct Prediction {
     pub data: *mut c_double,
     pub length: i32,
 }
+
+type PredictFn<'a> = Symbol<
+    'a,
+    unsafe extern "C" fn(
+        settings: *const Settings,
+        history: *const History,
+        result: *const Prediction,
+    ) -> c_double,
+>;
 
 impl Settings {
     pub fn new(lag: i32, seed: i32, stopping_criteria: c_double, log_results: u8) -> Self {
@@ -58,79 +76,197 @@ impl Prediction {
     }
 }
 
+pub enum PredictionKind {
+    #[allow(dead_code)]
+    LinearExtrapolation,
+    GeneticAlgorithm,
+}
+
+// Mitigates floating point errors.
+const SCALE_FACTOR: f64 = 100_000_000.0;
+
 pub async fn predict_entity(
     state: State,
     entity_id: String,
-    start: DateTime<Utc>,
+    time: DateTime<Utc>,
     duration: Duration,
     spacing: Duration,
+    kind: PredictionKind,
 ) -> Result<(Vec3, Vec3)> {
-    const FACTOR: f64 = 100_000_000.0;
+    match kind {
+        PredictionKind::LinearExtrapolation => {
+            let history = state.history.read().await;
+            let entities = state.entities.read().await;
 
+            let entity = entities.get(&entity_id).ok_or("Entity not found")?;
+            let entity_history = history.get(&entity_id).ok_or("Entity not found")?;
+
+            let last_update_time = entity_history.last().expect("No history found").date_time;
+            let time_since_last_update = time - last_update_time;
+
+            return Ok((
+                run_linear_extrapolation_prediction(
+                    entity.position,
+                    entity.angles,
+                    entity.velocity,
+                    time_since_last_update,
+                )?,
+                Vec3::new(0.0, 0.0, 0.0),
+            ));
+        }
+        PredictionKind::GeneticAlgorithm => {
+            let history = state.history.read().await;
+            let entity_history = history.get(&entity_id).ok_or("Entity not found")?;
+
+            // Calculate the amount of predictions to make from the last update time.
+            let last_update_time = entity_history.last().expect("No history found").date_time;
+            let time_since_last_update = time - last_update_time;
+
+            assert!(time_since_last_update > Duration::zero());
+
+            // If we don't have enough data to use the genetic algorithm, just linearly extrapolate.
+            if entity_history.len() < 2 {
+                let entities = state.entities.read().await;
+                let entity = entities.get(&entity_id).ok_or("Entity not found")?;
+
+                return Ok((
+                    run_linear_extrapolation_prediction(
+                        entity.position,
+                        entity.angles,
+                        entity.velocity,
+                        time_since_last_update,
+                    )?,
+                    Vec3::new(0.0, 0.0, 0.0),
+                ));
+            }
+
+            // Interpolate from the available history.
+            let (history_x, _, history_z) =
+                interpolate_entity_history(state.clone(), entity_id.clone(), duration, spacing)
+                    .await?;
+
+            // Scale the interpolated data.
+            let minutes_since_last_update = time_since_last_update.num_minutes() as usize;
+
+            let (predictions_x, error_x) =
+                run_genetic_algorithm_prediction(history_x, minutes_since_last_update)?;
+            let (predictions_z, error_z) =
+                run_genetic_algorithm_prediction(history_z, minutes_since_last_update)?;
+
+            // Get the latest prediction, scale it back to the actual value.
+            let x = predictions_x.last().unwrap() / SCALE_FACTOR;
+            let z = predictions_z.last().unwrap() / SCALE_FACTOR;
+
+            Ok((
+                Vec3::new(x as f32, 0.0, z as f32),
+                Vec3::new(error_x as f32, 0.0, error_z as f32),
+            ))
+        }
+    }
+}
+
+async fn interpolate_entity_history(
+    state: State,
+    entity_id: String,
+    duration: Duration,
+    spacing: Duration,
+) -> Result<(Vec<f64>, Vec<f64>, Vec<f64>)> {
     let history = state.history.read().await;
     let entity_history = history.get(&entity_id).ok_or("Entity not found")?;
+    assert!(entity_history.len() >= 2);
+    let first_update_time = entity_history.first().expect("No history found").date_time;
+    let last_update_time = entity_history.last().expect("No history found").date_time;
+    let history_duration = last_update_time - first_update_time;
 
+    // Collect each historical x position.
     let x_keys = entity_history
         .into_iter()
         .map(|e| {
             Key::new(
                 e.date_time.timestamp() as f64,
-                e.position.x as f64,
+                (e.position.x as f64) * SCALE_FACTOR,
                 Interpolation::Bezier(e.position.x as f64),
             )
         })
         .collect::<Vec<_>>();
 
+    // Collect each historical z position.
     let z_keys = entity_history
         .into_iter()
         .map(|e| {
             Key::new(
                 e.date_time.timestamp() as f64,
-                e.position.z as f64,
+                (e.position.z as f64) * SCALE_FACTOR,
                 Interpolation::Bezier(e.position.z as f64),
             )
         })
         .collect::<Vec<_>>();
 
+    // Create the splines.
     let spline_x = Spline::from_vec(x_keys);
     let spline_z = Spline::from_vec(z_keys);
 
-    let end_time = start.timestamp() as f64;
-    let start_time = end_time - (duration.num_seconds() as f64);
+    let end_time = last_update_time.timestamp() as f64;
+    let start_time = if history_duration >= duration {
+        end_time - (duration.num_seconds() as f64)
+    } else {
+        first_update_time.timestamp() as f64
+    };
     let num_minutes = (end_time - start_time) / (spacing.num_seconds() as f64);
 
     let mut history_x = vec![];
     let mut history_z = vec![];
 
+    // Perform the interpolation.
     for i in 0..(num_minutes as i32) {
         let time = start_time + ((i as f64) * (spacing.num_seconds() as f64));
 
-        history_x.push(spline_x.sample(time).unwrap() * FACTOR);
-        history_z.push(spline_z.sample(time).unwrap() * FACTOR);
+        history_x.push(spline_x.sample(time).unwrap());
+        history_z.push(spline_z.sample(time).unwrap());
     }
 
-    let (predictions_x, error_x) = run_prediction(history_x, 3)?;
-    let (predictions_z, error_z) = run_prediction(history_z, 3)?;
-    let x = predictions_x.get(0).unwrap() / FACTOR;
-    let z = predictions_z.get(0).unwrap() / FACTOR;
-
-    Ok((
-        Vec3::new(x as f32, 0.0, z as f32),
-        Vec3::new(error_x as f32, 0.0, error_z as f32),
-    ))
+    Ok((history_x, vec![], history_z))
 }
 
-#[link(name = "gpforecast")]
-extern "C" {
-    fn PredictTimeSeries(
-        settings: *const Settings,
-        history: *const History,
-        result: *const Prediction,
-    ) -> c_double;
+fn run_linear_extrapolation_prediction(
+    position: Vec3,
+    angles: Vec3,
+    velocity: Vec3,
+    delta_time: Duration,
+) -> Result<Vec3> {
+    // Earth radius in meters.
+    const EARTH_RADIUS: f32 = 63711000.0;
+    let dt = delta_time.num_seconds();
+
+    assert!(dt > 0, "Negative delta time");
+
+    let distance = (velocity.x * velocity.x + velocity.z * velocity.z).sqrt();
+
+    let latitude = (position.z.to_radians().sin() * (distance / EARTH_RADIUS).cos()
+        + position.z.to_radians().cos()
+            * (distance / EARTH_RADIUS).sin()
+            * angles.y.to_radians().cos())
+    .asin()
+    .to_degrees();
+
+    let longitude = position.x.to_radians()
+        + (angles.y.to_radians().sin()
+            * (distance / EARTH_RADIUS).sin()
+            * position.z.to_radians().cos())
+        .atan2((distance / EARTH_RADIUS).cos() - position.z.to_radians().sin() * latitude.sin())
+        .to_degrees();
+
+    Ok(Vec3::new(longitude, 0.0, latitude))
 }
 
-pub fn run_prediction(history: Vec<f64>, num_predictions: usize) -> Result<(Vec<f64>, f64)> {
-    let settings_ffi = Settings::new(1, -1, 15.0, 0);
+fn run_genetic_algorithm_prediction(
+    history: Vec<f64>,
+    num_predictions: usize,
+) -> Result<(Vec<f64>, f64)> {
+    assert!(history.len() >= 2);
+    assert!(num_predictions >= 1);
+
+    let settings_ffi = Settings::new(1, 42069, 15.0, 0);
 
     // Create the prediction result vector.
     let mut result_ffi = vec![0.0; num_predictions];
@@ -139,7 +275,7 @@ pub fn run_prediction(history: Vec<f64>, num_predictions: usize) -> Result<(Vec<
     let prediction_ffi = Prediction::new(&mut result_ffi);
 
     unsafe {
-        let error = PredictTimeSeries(&settings_ffi, &history_ffi, &prediction_ffi);
+        let error = PREDICTOR_FN(&settings_ffi, &history_ffi, &prediction_ffi);
         Ok((result_ffi, error))
     }
 }
