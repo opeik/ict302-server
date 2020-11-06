@@ -6,7 +6,7 @@ use tokio_serde::{formats::Json, Framed};
 use tokio_util::codec::{Framed as CodecFramed, LengthDelimitedCodec};
 
 use chrono::{DateTime, Utc};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::error::Error as StdError;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -33,7 +33,7 @@ pub struct Connection {
     pub addr: SocketAddr,
 }
 
-#[derive(Copy, Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Entity {
     pub position: Vec3,
     pub angles: Vec3,
@@ -42,6 +42,8 @@ pub struct Entity {
     pub date_time: DateTime<Utc>,
     #[serde(skip_serializing_if = "is_true")]
     pub is_interpolated: bool,
+    #[serde(skip_serializing)]
+    pub prediction_cache: VecDeque<Vec3>,
 }
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
@@ -104,6 +106,7 @@ impl Entity {
         velocity: Vec3,
         date_time: DateTime<Utc>,
         is_interpolated: bool,
+        prediction_cache: VecDeque<Vec3>,
     ) -> Self {
         Self {
             position,
@@ -111,6 +114,7 @@ impl Entity {
             velocity,
             date_time,
             is_interpolated,
+            prediction_cache,
         }
     }
 }

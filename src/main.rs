@@ -9,6 +9,7 @@ use types::*;
 use std::clone::Clone;
 
 use chrono::Duration;
+use std::thread;
 use tokio::{net::TcpListener, time::delay_for};
 use tracing::{debug, error, info};
 use tracing_subscriber;
@@ -31,9 +32,12 @@ async fn main() -> Result<()> {
 
     // Run each task concurrently, stopping all if any return.
     let status = tokio::select! {
-        e = tokio::spawn(connection_handler(state.clone())) => e.unwrap(),
-        e = tokio::spawn(game_loop(state.clone())) => e.unwrap(),
-        e = tokio::spawn(data_fetcher(state.clone())) => e.unwrap(),
+        e = tokio::task::spawn(connection_handler(state.clone())) => e.unwrap(),
+        e = tokio::task::spawn(data_fetcher(state.clone())) => e.unwrap(),
+        e = {
+            let state = state.clone();
+            tokio::task::spawn_blocking(move || game_loop(state.clone()) )
+        } => e.unwrap().await,
     };
 
     match status {

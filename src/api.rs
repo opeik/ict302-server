@@ -6,6 +6,8 @@ use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
+use std::collections::VecDeque;
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct Vessel {
     #[serde(rename = "craft_id")]
@@ -98,5 +100,6 @@ fn new_entity_from_vessel(vessel: &Vessel) -> Entity {
         Vec3::new(speed * radians.sin(), 0.0, speed * radians.cos()),
         date_time,
         false,
+        VecDeque::new(),
     )
 }

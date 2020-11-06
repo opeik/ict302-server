@@ -1,50 +1,90 @@
-use std::net::SocketAddr;
-
 use crate::net;
 use crate::prediction;
 use crate::types::*;
 
-use chrono::{Duration, Utc};
+use chrono::Duration;
 use nalgebra_glm::Vec3;
+use rayon::prelude::*;
 use tokio::{net::TcpStream, sync::RwLock};
 use tokio_serde::{formats::Json, Framed};
 use tokio_util::codec::{Framed as CodecFramed, LengthDelimitedCodec};
-use tracing::{debug, error, info};
+use tracing::{debug, info};
+
+use std::collections::VecDeque;
+use std::net::SocketAddr;
+use std::thread;
 
 pub async fn advance_simulation(state: State, delta_time: Duration) -> Result<()> {
-    // Update entity positions.
-    let mut entities = state.entities.write().await;
-    let mut current_time = state.current_time.write().await;
-    *current_time = *current_time + delta_time;
+    let mut prediction_handles;
 
-    debug!("Updating {} entity positions", entities.len());
+    {
+        // Update entity positions.
+        let entities = state.entities.read().await;
 
-    let prediction_handles = entities
-        .iter()
-        .map(|(k, v)| {
-            tokio::spawn(prediction::predict_entity(
-                state.clone(),
-                k.to_string(),
-                *current_time + Duration::minutes(1),
-                Duration::minutes(90),
-                Duration::minutes(1),
-                prediction::PredictionKind::GeneticAlgorithm,
-            ))
-        })
-        .collect::<Vec<_>>();
-
-    let predictions = futures::future::join_all(prediction_handles).await;
-
-    predictions.iter().enumerate().for_each(|(i, v)| match v {
-        Ok(v) => {
-            let keys = entities.keys().collect::<Vec<_>>();
-            let (prediction, error) = v.as_ref().unwrap();
-            let key = keys.get(i).unwrap().to_string();
-            let mut entity = entities.get_mut(&key).unwrap();
-            entity.position = *prediction;
+        // Update the current time.
+        {
+            let mut current_time = state.current_time.write().await;
+            *current_time = *current_time + delta_time;
         }
-        Err(e) => error!("Failed to predict: {}", e),
-    });
+
+        let current_time = state.current_time.read().await;
+
+        debug!("Updating {} entity positions", entities.len());
+
+        // If we've run out predictions for an entity, go ahead and generate more.
+        prediction_handles = entities
+            .iter()
+            .map(|(k, v)| {
+                let state = state.clone();
+                let current_time = current_time.clone();
+                let k = k.clone();
+                let v = v.clone();
+
+                thread::spawn(move || async move {
+                    if v.prediction_cache.is_empty() {
+                        Some(
+                            prediction::predict_entity(
+                                state.clone(),
+                                k,
+                                current_time,
+                                Duration::minutes(90),
+                                Duration::minutes(1),
+                                90,
+                                prediction::PredictionKind::GeneticAlgorithm,
+                            )
+                            .await,
+                        )
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect::<Vec<_>>();
+    }
+
+    for e in prediction_handles.iter() {
+        e.join().unwrap().await;
+    }
+
+    // Cache the predictions.
+    {
+        let mut entities = state.entities.write().await;
+
+        for (i, (_, v)) in entities.iter_mut().enumerate() {
+            if v.prediction_cache.is_empty() {
+                // This is awful but I don't have time to fix it, forgive me.
+                let x = prediction_handles.remove(i).join().unwrap().await;
+                debug!("{:?}", x);
+
+                // v.prediction_cache = VecDeque::from(predictions);
+            }
+        }
+    }
+
+    // Use the predictions to set the entity position.
+    // entities.iter_mut().for_each(|(_, v)| {
+    //     v.position = v.prediction_cache.pop_front().unwrap();
+    // });
 
     Ok(())
 }

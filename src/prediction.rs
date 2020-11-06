@@ -6,7 +6,7 @@ use libc::c_double;
 use libloading::{Library, Symbol};
 use nalgebra_glm::Vec3;
 use splines::{Interpolation, Key, Spline};
-use tracing::{debug, error, info};
+use tracing::debug;
 
 lazy_static! {
     static ref PREDICTOR_LIB: Library =
@@ -89,32 +89,29 @@ pub async fn predict_entity(
     state: State,
     entity_id: String,
     time: DateTime<Utc>,
-    duration: Duration,
+    look_behind: Duration,
     spacing: Duration,
+    num_predictions: usize,
     kind: PredictionKind,
-) -> Result<(Vec3, Vec3)> {
+) -> Result<(Vec<Vec3>, Vec3)> {
     match kind {
         PredictionKind::LinearExtrapolation => {
-            let history = state.history.read().await;
+            debug!("Beginning linear predictions on entity {}", entity_id);
             let entities = state.entities.read().await;
 
             let entity = entities.get(&entity_id).ok_or("Entity not found")?;
-            let entity_history = history.get(&entity_id).ok_or("Entity not found")?;
 
-            let last_update_time = entity_history.last().expect("No history found").date_time;
-            let time_since_last_update = time - last_update_time;
-
-            return Ok((
-                run_linear_extrapolation_prediction(
-                    entity.position,
-                    entity.angles,
-                    entity.velocity,
-                    time_since_last_update,
-                )?,
-                Vec3::new(0.0, 0.0, 0.0),
-            ));
+            return Ok(run_linear_extrapolation_prediction(
+                entity.position,
+                entity.angles,
+                entity.velocity,
+                num_predictions,
+                spacing,
+            )?);
         }
         PredictionKind::GeneticAlgorithm => {
+            debug!("Beginning genetic predictions on entity {}", entity_id);
+
             let history = state.history.read().await;
             let entity_history = history.get(&entity_id).ok_or("Entity not found")?;
 
@@ -129,37 +126,48 @@ pub async fn predict_entity(
                 let entities = state.entities.read().await;
                 let entity = entities.get(&entity_id).ok_or("Entity not found")?;
 
-                return Ok((
-                    run_linear_extrapolation_prediction(
-                        entity.position,
-                        entity.angles,
-                        entity.velocity,
-                        time_since_last_update,
-                    )?,
-                    Vec3::new(0.0, 0.0, 0.0),
-                ));
+                return Ok(run_linear_extrapolation_prediction(
+                    entity.position,
+                    entity.angles,
+                    entity.velocity,
+                    num_predictions,
+                    spacing,
+                )?);
             }
 
             // Interpolate from the available history.
             let (history_x, _, history_z) =
-                interpolate_entity_history(state.clone(), entity_id.clone(), duration, spacing)
+                interpolate_entity_history(state.clone(), entity_id.clone(), look_behind, spacing)
                     .await?;
 
             // Scale the interpolated data.
             let minutes_since_last_update = time_since_last_update.num_minutes() as usize;
 
             let (predictions_x, error_x) =
-                run_genetic_algorithm_prediction(history_x, minutes_since_last_update)?;
+                run_genetic_algorithm_prediction(history_x, minutes_since_last_update).await?;
             let (predictions_z, error_z) =
-                run_genetic_algorithm_prediction(history_z, minutes_since_last_update)?;
+                run_genetic_algorithm_prediction(history_z, minutes_since_last_update).await?;
 
-            // Get the latest prediction, scale it back to the actual value.
-            let x = predictions_x.last().unwrap() / SCALE_FACTOR;
-            let z = predictions_z.last().unwrap() / SCALE_FACTOR;
+            let mut predictions = vec![];
+
+            // Combine the axes.
+            for i in 0..minutes_since_last_update {
+                predictions.push(Vec3::new(
+                    (predictions_x.get(i).unwrap() / SCALE_FACTOR) as f32,
+                    0.0,
+                    (predictions_z.get(i).unwrap() / SCALE_FACTOR) as f32,
+                ));
+            }
+
+            debug!("Finished genetic predictions on entity {}", entity_id);
 
             Ok((
-                Vec3::new(x as f32, 0.0, z as f32),
-                Vec3::new(error_x as f32, 0.0, error_z as f32),
+                predictions,
+                Vec3::new(
+                    (error_x / SCALE_FACTOR) as f32,
+                    0.0,
+                    (error_z / SCALE_FACTOR) as f32,
+                ),
             ))
         }
     }
@@ -168,7 +176,7 @@ pub async fn predict_entity(
 async fn interpolate_entity_history(
     state: State,
     entity_id: String,
-    duration: Duration,
+    look_behind: Duration,
     spacing: Duration,
 ) -> Result<(Vec<f64>, Vec<f64>, Vec<f64>)> {
     let history = state.history.read().await;
@@ -207,8 +215,8 @@ async fn interpolate_entity_history(
     let spline_z = Spline::from_vec(z_keys);
 
     let end_time = last_update_time.timestamp() as f64;
-    let start_time = if history_duration >= duration {
-        end_time - (duration.num_seconds() as f64)
+    let start_time = if history_duration >= look_behind {
+        end_time - (look_behind.num_seconds() as f64)
     } else {
         first_update_time.timestamp() as f64
     };
@@ -228,38 +236,46 @@ async fn interpolate_entity_history(
     Ok((history_x, vec![], history_z))
 }
 
-fn run_linear_extrapolation_prediction(
+pub fn run_linear_extrapolation_prediction(
     position: Vec3,
     angles: Vec3,
     velocity: Vec3,
+    num_predictions: usize,
     delta_time: Duration,
-) -> Result<Vec3> {
+) -> Result<(Vec<Vec3>, Vec3)> {
     // Earth radius in meters.
     const EARTH_RADIUS: f32 = 63711000.0;
-    let dt = delta_time.num_seconds();
 
-    assert!(dt > 0, "Negative delta time");
+    assert!(delta_time > Duration::zero(), "Negative delta time");
 
-    let distance = (velocity.x * velocity.x + velocity.z * velocity.z).sqrt();
+    let mut predictions = vec![];
 
-    let latitude = (position.z.to_radians().sin() * (distance / EARTH_RADIUS).cos()
-        + position.z.to_radians().cos()
-            * (distance / EARTH_RADIUS).sin()
-            * angles.y.to_radians().cos())
-    .asin()
-    .to_degrees();
+    for i in 0..num_predictions {
+        let delta_time = (delta_time.num_seconds() as f32) * ((i as f32) + 1.0);
+        let distance =
+            ((velocity.x * delta_time).powf(2.0) + (velocity.z * delta_time).powf(2.0)).sqrt();
 
-    let longitude = position.x.to_radians()
-        + (angles.y.to_radians().sin()
-            * (distance / EARTH_RADIUS).sin()
-            * position.z.to_radians().cos())
-        .atan2((distance / EARTH_RADIUS).cos() - position.z.to_radians().sin() * latitude.sin())
+        let latitude = (position.z.to_radians().sin() * (distance / EARTH_RADIUS).cos()
+            + position.z.to_radians().cos()
+                * (distance / EARTH_RADIUS).sin()
+                * angles.y.to_radians().cos())
+        .asin()
         .to_degrees();
 
-    Ok(Vec3::new(longitude, 0.0, latitude))
+        let longitude = position.x.to_radians()
+            + (angles.y.to_radians().sin()
+                * (distance / EARTH_RADIUS).sin()
+                * position.z.to_radians().cos())
+            .atan2((distance / EARTH_RADIUS).cos() - position.z.to_radians().sin() * latitude.sin())
+            .to_degrees();
+
+        predictions.push(Vec3::new(longitude, 0.0, latitude));
+    }
+
+    Ok((predictions, Vec3::new(0.0, 0.0, 0.0)))
 }
 
-fn run_genetic_algorithm_prediction(
+async fn run_genetic_algorithm_prediction(
     history: Vec<f64>,
     num_predictions: usize,
 ) -> Result<(Vec<f64>, f64)> {
