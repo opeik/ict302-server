@@ -8,77 +8,55 @@ use rayon::prelude::*;
 use tokio::{net::TcpStream, sync::RwLock};
 use tokio_serde::{formats::Json, Framed};
 use tokio_util::codec::{Framed as CodecFramed, LengthDelimitedCodec};
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 use std::collections::VecDeque;
 use std::net::SocketAddr;
-use std::thread;
 
 pub async fn advance_simulation(state: State, delta_time: Duration) -> Result<()> {
-    let mut prediction_handles;
+    let mut predictions;
 
     {
         // Update entity positions.
         let entities = state.entities.read().await;
 
-        // Update the current time.
-        {
-            let mut current_time = state.current_time.write().await;
-            *current_time = *current_time + delta_time;
-        }
-
-        let current_time = state.current_time.read().await;
-
         debug!("Updating {} entity positions", entities.len());
 
         // If we've run out predictions for an entity, go ahead and generate more.
-        prediction_handles = entities
-            .iter()
+        predictions = entities
+            .par_iter()
             .map(|(k, v)| {
                 let state = state.clone();
-                let current_time = current_time.clone();
                 let k = k.clone();
                 let v = v.clone();
 
-                thread::spawn(move || async move {
-                    if v.prediction_cache.is_empty() {
-                        Some(
-                            prediction::predict_entity(
-                                state.clone(),
-                                k,
-                                current_time,
-                                Duration::minutes(90),
-                                Duration::minutes(1),
-                                90,
-                                prediction::PredictionKind::GeneticAlgorithm,
-                            )
-                            .await,
-                        )
-                    } else {
-                        None
-                    }
-                })
+                if v.prediction_cache.is_empty() {
+                    Some(prediction::predict_entity(
+                        state.clone(),
+                        k,
+                        Duration::hours(2),
+                        Duration::minutes(5),
+                        18,
+                        prediction::PredictionKind::GeneticAlgorithm,
+                    ))
+                } else {
+                    None
+                }
             })
             .collect::<Vec<_>>();
-    }
-
-    for e in prediction_handles.iter() {
-        e.join().unwrap().await;
     }
 
     // Cache the predictions.
     {
         let mut entities = state.entities.write().await;
 
-        for (i, (_, v)) in entities.iter_mut().enumerate() {
-            if v.prediction_cache.is_empty() {
-                // This is awful but I don't have time to fix it, forgive me.
-                let x = prediction_handles.remove(i).join().unwrap().await;
-                debug!("{:?}", x);
-
-                // v.prediction_cache = VecDeque::from(predictions);
-            }
-        }
+        //for (i, (_, v)) in entities.par_iter_mut().enumerate() {
+        //    if v.prediction_cache.is_empty() {
+        //        // This is awful but I don't have time to fix it, forgive me.
+        //        let x = prediction_handles.remove(i).join().unwrap().await;
+        //        // v.prediction_cache = VecDeque::from(predictions);
+        //    }
+        //}
     }
 
     // Use the predictions to set the entity position.

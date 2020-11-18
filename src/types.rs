@@ -25,7 +25,6 @@ pub struct State {
     pub players: Arc<RwLock<HashMap<PlayerId, Player>>>,
     pub connections: Arc<RwLock<HashMap<PlayerId, RwLock<Connection>>>>,
     pub next_player_id: Arc<RwLock<PlayerId>>,
-    pub current_time: Arc<RwLock<DateTime<Utc>>>,
 }
 
 pub struct Connection {
@@ -90,11 +89,6 @@ impl State {
             players: Arc::new(RwLock::new(HashMap::new())),
             connections: Arc::new(RwLock::new(HashMap::new())),
             next_player_id: Arc::new(RwLock::new(0)),
-            current_time: Arc::new(RwLock::new(
-                DateTime::parse_from_rfc3339("2018-01-02T08:00:00+00:00")
-                    .unwrap()
-                    .with_timezone(&Utc),
-            )),
         }
     }
 }

@@ -1,6 +1,6 @@
 use crate::types::*;
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Duration};
 use lazy_static::lazy_static;
 use libc::c_double;
 use libloading::{Library, Symbol};
@@ -85,19 +85,19 @@ pub enum PredictionKind {
 // Mitigates floating point errors.
 const SCALE_FACTOR: f64 = 100_000_000.0;
 
-pub async fn predict_entity(
+pub fn predict_entity(
     state: State,
     entity_id: String,
-    time: DateTime<Utc>,
     look_behind: Duration,
     spacing: Duration,
     num_predictions: usize,
     kind: PredictionKind,
 ) -> Result<(Vec<Vec3>, Vec3)> {
+    debug!("Starting predictions on entity {}", entity_id);
+
     match kind {
         PredictionKind::LinearExtrapolation => {
-            debug!("Beginning linear predictions on entity {}", entity_id);
-            let entities = state.entities.read().await;
+            let entities = futures::executor::block_on(state.entities.read());
 
             let entity = entities.get(&entity_id).ok_or("Entity not found")?;
 
@@ -110,20 +110,24 @@ pub async fn predict_entity(
             )?);
         }
         PredictionKind::GeneticAlgorithm => {
-            debug!("Beginning genetic predictions on entity {}", entity_id);
-
-            let history = state.history.read().await;
+            let history = futures::executor::block_on(state.history.read());
             let entity_history = history.get(&entity_id).ok_or("Entity not found")?;
+
+            if entity_history.len() < 2 {
+                return Err(Box::from("Not enough history"));
+            }
 
             // Calculate the amount of predictions to make from the last update time.
             let last_update_time = entity_history.last().expect("No history found").date_time;
-            let time_since_last_update = time - last_update_time;
+            let first_update_time = entity_history.first().expect("No history found").date_time;
+            let history_duration = last_update_time - first_update_time;
+            let min_history_points = look_behind.num_seconds() / spacing.num_seconds();
 
-            assert!(time_since_last_update > Duration::zero());
+            assert!(history_duration > Duration::zero());
 
             // If we don't have enough data to use the genetic algorithm, just linearly extrapolate.
-            if entity_history.len() < 2 {
-                let entities = state.entities.read().await;
+            if (history_duration.num_seconds() / spacing.num_seconds()) < min_history_points {
+                let entities = futures::executor::block_on(state.entities.read());
                 let entity = entities.get(&entity_id).ok_or("Entity not found")?;
 
                 return Ok(run_linear_extrapolation_prediction(
@@ -136,22 +140,25 @@ pub async fn predict_entity(
             }
 
             // Interpolate from the available history.
-            let (history_x, _, history_z) =
-                interpolate_entity_history(state.clone(), entity_id.clone(), look_behind, spacing)
-                    .await?;
+            let (history_x, _, history_z) = futures::executor::block_on(
+                interpolate_entity_history(state.clone(), entity_id.clone(), look_behind, spacing),
+            )?;
 
-            // Scale the interpolated data.
-            let minutes_since_last_update = time_since_last_update.num_minutes() as usize;
+            debug!(
+                "Calling FFI predictor for entity {}, history size {}",
+                entity_id,
+                history_x.len()
+            );
 
             let (predictions_x, error_x) =
-                run_genetic_algorithm_prediction(history_x, minutes_since_last_update).await?;
+                run_genetic_algorithm_prediction(history_x, num_predictions)?;
             let (predictions_z, error_z) =
-                run_genetic_algorithm_prediction(history_z, minutes_since_last_update).await?;
+                run_genetic_algorithm_prediction(history_z, num_predictions)?;
 
             let mut predictions = vec![];
 
             // Combine the axes.
-            for i in 0..minutes_since_last_update {
+            for i in 0..num_predictions {
                 predictions.push(Vec3::new(
                     (predictions_x.get(i).unwrap() / SCALE_FACTOR) as f32,
                     0.0,
@@ -159,7 +166,7 @@ pub async fn predict_entity(
                 ));
             }
 
-            debug!("Finished genetic predictions on entity {}", entity_id);
+            debug!("Finished predictions on entity {}", entity_id);
 
             Ok((
                 predictions,
@@ -181,6 +188,7 @@ async fn interpolate_entity_history(
 ) -> Result<(Vec<f64>, Vec<f64>, Vec<f64>)> {
     let history = state.history.read().await;
     let entity_history = history.get(&entity_id).ok_or("Entity not found")?;
+
     assert!(entity_history.len() >= 2);
     let first_update_time = entity_history.first().expect("No history found").date_time;
     let last_update_time = entity_history.last().expect("No history found").date_time;
@@ -275,14 +283,15 @@ pub fn run_linear_extrapolation_prediction(
     Ok((predictions, Vec3::new(0.0, 0.0, 0.0)))
 }
 
-async fn run_genetic_algorithm_prediction(
+fn run_genetic_algorithm_prediction(
     history: Vec<f64>,
     num_predictions: usize,
 ) -> Result<(Vec<f64>, f64)> {
-    assert!(history.len() >= 2);
+    const EXPECTED_HISTORY_LENGTH: usize = 24;
+    assert!(history.len() == EXPECTED_HISTORY_LENGTH);
     assert!(num_predictions >= 1);
 
-    let settings_ffi = Settings::new(1, 42069, 15.0, 0);
+    let settings_ffi = Settings::new(12, 42069, 15.0, 0);
 
     // Create the prediction result vector.
     let mut result_ffi = vec![0.0; num_predictions];
