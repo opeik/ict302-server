@@ -61,6 +61,11 @@ pub async fn fetch_entities(state: State, time_span: Duration) -> Result<()> {
             .push(new_entity_from_vessel(&v));
     });
 
+    // Remove duplicates.
+    history.iter_mut().for_each(|(_, v)| {
+        v.dedup_by(|a, b| a.date_time == b.date_time);
+    });
+
     // Sort the history by time.
     history.iter_mut().for_each(|(_, v)| {
         v.sort_by(|a, b| a.date_time.partial_cmp(&b.date_time).unwrap());

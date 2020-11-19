@@ -1,6 +1,6 @@
 use crate::types::*;
 
-use chrono::{DateTime, Duration};
+use chrono::Duration;
 use lazy_static::lazy_static;
 use libc::c_double;
 use libloading::{Library, Symbol};
@@ -144,12 +144,6 @@ pub fn predict_entity(
                 interpolate_entity_history(state.clone(), entity_id.clone(), look_behind, spacing),
             )?;
 
-            debug!(
-                "Calling FFI predictor for entity {}, history size {}",
-                entity_id,
-                history_x.len()
-            );
-
             let (predictions_x, error_x) =
                 run_genetic_algorithm_prediction(history_x, num_predictions)?;
             let (predictions_z, error_z) =
@@ -165,8 +159,6 @@ pub fn predict_entity(
                     (predictions_z.get(i).unwrap() / SCALE_FACTOR) as f32,
                 ));
             }
-
-            debug!("Finished predictions on entity {}", entity_id);
 
             Ok((
                 predictions,

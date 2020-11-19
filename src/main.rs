@@ -9,7 +9,6 @@ use types::*;
 use std::clone::Clone;
 
 use chrono::Duration;
-use std::thread;
 use tokio::{net::TcpListener, time::delay_for};
 use tracing::{debug, error, info};
 use tracing_subscriber;

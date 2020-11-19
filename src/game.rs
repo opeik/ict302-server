@@ -8,19 +8,25 @@ use rayon::prelude::*;
 use tokio::{net::TcpStream, sync::RwLock};
 use tokio_serde::{formats::Json, Framed};
 use tokio_util::codec::{Framed as CodecFramed, LengthDelimitedCodec};
-use tracing::{debug, error, info};
+use tracing::{debug, info};
 
 use std::collections::VecDeque;
 use std::net::SocketAddr;
 
-pub async fn advance_simulation(state: State, delta_time: Duration) -> Result<()> {
+pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<()> {
     let mut predictions;
 
     {
         // Update entity positions.
-        let entities = state.entities.read().await;
+        let entities;
 
-        debug!("Updating {} entity positions", entities.len());
+        // Copy the entities to avoid a deadlock.
+        {
+            let _entities = state.entities.read().await;
+            entities = _entities.clone();
+        }
+
+        debug!("Running {} entity predictions", entities.len());
 
         // If we've run out predictions for an entity, go ahead and generate more.
         predictions = entities
@@ -46,23 +52,25 @@ pub async fn advance_simulation(state: State, delta_time: Duration) -> Result<()
             .collect::<Vec<_>>();
     }
 
-    // Cache the predictions.
     {
+        debug!("Updating entity prediction caches");
         let mut entities = state.entities.write().await;
 
-        //for (i, (_, v)) in entities.par_iter_mut().enumerate() {
-        //    if v.prediction_cache.is_empty() {
-        //        // This is awful but I don't have time to fix it, forgive me.
-        //        let x = prediction_handles.remove(i).join().unwrap().await;
-        //        // v.prediction_cache = VecDeque::from(predictions);
-        //    }
-        //}
-    }
+        // Cache the predictions.
+        for (i, (_, v)) in entities.iter_mut().enumerate() {
+            if v.prediction_cache.is_empty() {
+                let (entity_predictions, _error) = predictions.remove(i).unwrap().unwrap();
+                v.prediction_cache = VecDeque::from(entity_predictions);
+            }
+        }
 
-    // Use the predictions to set the entity position.
-    // entities.iter_mut().for_each(|(_, v)| {
-    //     v.position = v.prediction_cache.pop_front().unwrap();
-    // });
+        debug!("Updating entity positions");
+
+        // Use the predictions to set the entity position.
+        entities.iter_mut().for_each(|(_, v)| {
+            v.position = v.prediction_cache.pop_front().unwrap();
+        });
+    }
 
     Ok(())
 }
