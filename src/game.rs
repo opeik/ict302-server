@@ -21,10 +21,11 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
     // Check for new data, update the entity positions with that.
     {
         let mut entities = state.entities.write().await;
-        let history = state.history.read().await;
+        let mut history = state.history.write().await;
 
-        history.iter().for_each(|(k, v)| {
+        history.iter_mut().for_each(|(k, v)| {
             if v.was_updated {
+                v.was_updated = false;
                 let latest = v.history.last().unwrap();
 
                 entities
@@ -32,6 +33,8 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                     .and_modify(|e| *e = latest.clone())
                     .or_insert(latest.clone());
             }
+
+            debug!("New data arrived, updated entity {}", k);
         });
     }
 
