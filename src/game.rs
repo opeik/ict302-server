@@ -19,7 +19,6 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
     let num_predictions = 18;
 
     {
-        // Update entity positions.
         let entities;
 
         // Copy the entities to avoid a deadlock.
@@ -61,6 +60,7 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
     {
         debug!("Updating entity prediction caches");
         let mut entities = state.entities.write().await;
+        let history = state.history.read().await;
 
         // Cache the predictions.
         for i in predictions.iter() {
@@ -109,7 +109,19 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                         current_time.clone(),
                     );
 
+                    // Update the position from the cached prediction.
                     v.position = interpolated_prediction.position;
+                    let entity_history = history.get(k).expect("Missing entity id").clone();
+
+                    // Check for anomalies.
+                    if prediction::is_entity_in_anomalous_position(v.clone(), entity_history) {
+                        let mut anomalies = futures::executor::block_on(state.anomalies.write());
+
+                        anomalies.push(Anomaly {
+                            entity_id: k.clone(),
+                            msg: "Anomalous position detected".to_owned(),
+                        });
+                    }
                 }
                 None => error!("Tried to update entity {} but prediction cache is empty", k),
             }

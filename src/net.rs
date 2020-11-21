@@ -23,6 +23,12 @@ pub async fn send_update(state: State, player_id: PlayerId) -> Result<()> {
         anomalies: anomalies.clone(),
     };
 
+    // Clear the anomaly cache.
+    {
+        let mut anomalies = state.anomalies.write().await;
+        anomalies.clear();
+    }
+
     let message = ServerMessage::Update(server_update_data);
 
     if let Err(e) = connection.framed.send(message.clone()).await {

@@ -48,8 +48,8 @@ pub async fn fetch_entities(state: State, time_span: Duration) -> Result<()> {
     assert_eq!(response.vessels.len(), response.result_length);
     info!("Parsed {} entities from response", response.vessels.len());
 
-    // TODO: Does this cause a deadlock?
     let mut entities = state.entities.write().await;
+    // TODO: Does this cause a deadlock?
     let mut history = state.history.write().await;
 
     // Load all the entities into history.

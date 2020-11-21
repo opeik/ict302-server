@@ -84,6 +84,34 @@ pub enum PredictionKind {
 
 // Mitigates floating point errors.
 const SCALE_FACTOR: f64 = 100_000_000.0;
+const LINEAR_INTERPOLATION_ERROR: f32 = 10.0;
+
+fn is_position_within_error_bounds(base: Vec3, error: Vec3, position: Vec3) -> bool {
+    (position.x >= (base.x - error.x))
+        && (position.x <= (base.x + error.x))
+        && (position.z >= (base.z - error.z))
+        && (position.z <= (base.z + error.z))
+}
+
+pub fn is_entity_in_anomalous_position(entity: Entity, history: Vec<Entity>) -> bool {
+    if entity.prediction_cache.is_empty() {
+        return false;
+    }
+
+    let mut is_in_anomalous_position = false;
+    let prediction = entity
+        .prediction_cache
+        .front()
+        .expect("Prediction cache empty");
+
+    for i in history {
+        if !is_position_within_error_bounds(entity.position, prediction.error, i.position) {
+            is_in_anomalous_position = true;
+        }
+    }
+
+    is_in_anomalous_position
+}
 
 pub fn interpolate_cached_prediction(
     prediction: crate::types::Prediction,
@@ -353,7 +381,10 @@ pub fn run_linear_extrapolation_prediction(
         predictions.push(Vec3::new(longitude, 0.0, latitude));
     }
 
-    Ok((predictions, Vec3::new(0.0, 0.0, 0.0)))
+    Ok((
+        predictions,
+        Vec3::new(LINEAR_INTERPOLATION_ERROR, 0.0, LINEAR_INTERPOLATION_ERROR),
+    ))
 }
 
 fn run_genetic_algorithm_prediction(
