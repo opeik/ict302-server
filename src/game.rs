@@ -189,8 +189,8 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
 
                     if !is_position_valid(v.position) {
                         warn!(
-                            "Entity {} is in an invalid position {{{}, {}}}",
-                            k, v.position.x, v.position.z
+                            "Entity {} is in an invalid position {{{}, {}}}, prediction kind {:?}",
+                            k, v.position.x, v.position.z, e.kind,
                         );
                     }
 
