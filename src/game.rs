@@ -20,13 +20,7 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
     let mut writer = csv::Writer::from_path(
         chrono::offset::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true) + ".csv",
     )?;
-    writer.write_record(&[
-        "Entity ID",
-        "Actual position",
-        "Predicted position",
-        "Error",
-        "Stale predictions",
-    ])?;
+    writer.write_record(&["ID", "Actual", "Predicted", "Error", "Stale"])?;
 
     // Check for new data, update the entity positions with that.
     {
@@ -168,8 +162,8 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                             .serialize((
                                 k,
                                 v.position.to_string(),
-                                v.prediction_cache.front().unwrap().position,
-                                v.prediction_cache.front().unwrap().error,
+                                v.prediction_cache.front().unwrap().position.to_string(),
+                                v.prediction_cache.front().unwrap().error.to_string(),
                                 v.num_stale_predictions,
                             ))
                             .expect("Failed to write csv");
