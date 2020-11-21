@@ -375,9 +375,8 @@ pub fn run_linear_extrapolation_prediction(
     let mut predictions = vec![];
 
     for i in 0..num_predictions {
-        let velocity = velocity * (spacing.num_seconds() as f32 * (i as f32 + 1.0));
-
-        let distance = (velocity.x.powf(2.0) + velocity.z.powf(2.0)).sqrt();
+        let distance = ((velocity.x.powf(2.0) + velocity.z.powf(2.0)).sqrt())
+            * (spacing.num_seconds() as f32 * (i as f32 + 1.0));
         let r: f32 = 63711000.0; // Earth Radius in m
 
         let lat2 = (position.z.to_radians().sin() * (distance / r).cos()
