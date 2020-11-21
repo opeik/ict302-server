@@ -12,6 +12,8 @@ use tracing::{debug, error, info, warn};
 
 use std::net::SocketAddr;
 
+const MAX_REGENERATION_ATTEMPTS: i32 = 3;
+
 pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<()> {
     let predictions;
     let look_behind = Duration::hours(2);
@@ -74,13 +76,52 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                 let v = v.clone();
 
                 if v.prediction_cache.is_empty() {
+                    // Try the genetic algorithm.
+                    for _ in 0..MAX_REGENERATION_ATTEMPTS {
+                        let result = prediction::predict_entity(
+                            state.clone(),
+                            k.clone(),
+                            look_behind,
+                            spacing,
+                            num_predictions,
+                            prediction::PredictionKind::GeneticAlgorithm,
+                        );
+
+                        // Check if the values are sane, if they aren't, try regenerating.
+                        match result {
+                            Ok((_, ref predictions)) => {
+                                let mut predictions_valid = true;
+
+                                for prediction in predictions {
+                                    if !is_position_valid(prediction.position) {
+                                        predictions_valid = false;
+                                        warn!(
+                                            "Prediction for entity {} was invalid, regenerating...",
+                                            k
+                                        );
+                                    }
+                                }
+
+                                if predictions_valid {
+                                    return Some(result);
+                                }
+                            }
+                            Err(_e) => (),
+                        }
+                    }
+                    // Screw it, use linear extrapolation.
+                    warn!(
+                        "Failed {} prediction regenerations for entity {}, using linear extrapolation",
+                        MAX_REGENERATION_ATTEMPTS, k
+                    );
+
                     Some(prediction::predict_entity(
                         state.clone(),
-                        k,
+                        k.clone(),
                         look_behind,
                         spacing,
                         num_predictions,
-                        prediction::PredictionKind::GeneticAlgorithm,
+                        prediction::PredictionKind::LinearExtrapolation,
                     ))
                 } else {
                     None
