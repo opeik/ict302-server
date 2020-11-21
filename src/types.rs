@@ -77,6 +77,7 @@ pub struct Prediction {
 pub struct Anomaly {
     pub entity_id: String,
     pub msg: String,
+    pub prediction_kind: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

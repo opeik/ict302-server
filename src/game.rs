@@ -205,6 +205,7 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                         anomalies.push(Anomaly {
                             entity_id: k.clone(),
                             msg: "Anomalous position detected".to_owned(),
+                            prediction_kind: e.kind.to_string(),
                         });
 
                         writer

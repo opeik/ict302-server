@@ -1,3 +1,5 @@
+use std::fmt;
+
 use crate::types::*;
 
 use chrono::{DateTime, Duration, Utc};
@@ -80,6 +82,12 @@ impl Prediction {
 pub enum PredictionKind {
     LinearExtrapolation,
     GeneticAlgorithm,
+}
+
+impl fmt::Display for PredictionKind {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(self, f)
+    }
 }
 
 // Mitigates floating point errors.
