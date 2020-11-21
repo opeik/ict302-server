@@ -58,14 +58,37 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                 let v = v.clone();
 
                 if v.prediction_cache.is_empty() {
-                    Some(prediction::predict_entity(
-                        state.clone(),
-                        k,
-                        look_behind,
-                        spacing,
-                        num_predictions,
-                        prediction::PredictionKind::GeneticAlgorithm,
-                    ))
+                    loop {
+                        let result = prediction::predict_entity(
+                            state.clone(),
+                            k.clone(),
+                            look_behind,
+                            spacing,
+                            num_predictions,
+                            prediction::PredictionKind::GeneticAlgorithm,
+                        );
+
+                        match result {
+                            Ok((_, ref predictions)) => {
+                                let mut predictions_valid = true;
+
+                                for prediction in predictions {
+                                    if !is_position_valid(prediction.position) {
+                                        predictions_valid = false;
+                                        warn!(
+                                            "Prediction for entity {} was invalid, regenerating...",
+                                            k
+                                        );
+                                    }
+                                }
+
+                                if predictions_valid {
+                                    return Some(result);
+                                }
+                            }
+                            Err(_e) => (),
+                        }
+                    }
                 } else {
                     None
                 }
