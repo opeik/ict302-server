@@ -76,9 +76,14 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
         debug!("Updating entity positions");
 
         // Use the predictions to set the entity position.
-        entities.iter_mut().for_each(|(_, v)| {
-            v.position = v.prediction_cache.pop_front().unwrap();
-        });
+        entities
+            .iter_mut()
+            .for_each(|(k, v)| match v.prediction_cache.pop_front() {
+                Some(e) => {
+                    v.position = e;
+                }
+                None => error!("Tried to update entity {}, no predictions found", k),
+            });
     }
 
     Ok(())
