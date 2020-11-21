@@ -49,6 +49,9 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                     None
                 }
             })
+            .collect::<Vec<_>>()
+            .into_iter()
+            .filter_map(|e| e)
             .collect::<Vec<_>>();
     }
 
@@ -59,17 +62,14 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
         // Cache the predictions.
         for i in predictions.iter() {
             match i {
-                Some(e) => match e {
-                    Ok((entity_id, entity_predictions, _error)) => {
-                        let entity = entities
-                            .get_mut(&entity_id.clone())
-                            .expect("Enable to find entity");
+                Ok((entity_id, entity_predictions, _error)) => {
+                    let entity = entities
+                        .get_mut(&entity_id.clone())
+                        .expect("Enable to find entity");
 
-                        entity.prediction_cache.extend(entity_predictions);
-                    }
-                    Err(e) => {}
-                },
-                None => error!("How did you get here?"),
+                    entity.prediction_cache.extend(entity_predictions);
+                }
+                Err(e) => error!("Predictions failed: {}", e),
             }
         }
 
