@@ -1,6 +1,6 @@
 use crate::types::*;
 
-use chrono::Duration;
+use chrono::{DateTime, Duration, Utc};
 use lazy_static::lazy_static;
 use libc::c_double;
 use libloading::{Library, Symbol};
@@ -85,6 +85,42 @@ pub enum PredictionKind {
 // Mitigates floating point errors.
 const SCALE_FACTOR: f64 = 100_000_000.0;
 
+pub fn interpolate_cached_prediction(
+    prediction: crate::types::Prediction,
+    spacing: Duration,
+    current_position: Vec3,
+    current_time: DateTime<Utc>,
+) -> crate::types::Prediction {
+    let start_time = prediction.date_time.timestamp();
+    let end_time = (prediction.date_time + spacing).timestamp();
+
+    let start_x = Key::new(start_time as f64, current_position.x, Interpolation::Linear);
+    let end_x = Key::new(
+        end_time as f64,
+        prediction.position.x,
+        Interpolation::default(),
+    );
+    let spline_x = Spline::from_vec(vec![start_x, end_x]);
+
+    let start_z = Key::new(start_time as f64, current_position.x, Interpolation::Linear);
+    let end_z = Key::new(
+        end_time as f64,
+        prediction.position.x,
+        Interpolation::default(),
+    );
+    let spline_z = Spline::from_vec(vec![start_z, end_z]);
+
+    crate::types::Prediction {
+        position: Vec3::new(
+            spline_x.sample(current_time.timestamp() as f64).unwrap(),
+            0.0,
+            spline_z.sample(current_time.timestamp() as f64).unwrap(),
+        ),
+        error: prediction.error,
+        date_time: current_time,
+    }
+}
+
 pub fn predict_entity(
     state: State,
     entity_id: String,
@@ -92,12 +128,20 @@ pub fn predict_entity(
     spacing: Duration,
     num_predictions: usize,
     kind: PredictionKind,
-) -> Result<(String, Vec<Vec3>, Vec3)> {
+) -> Result<(String, Vec<crate::types::Prediction>)> {
     match kind {
         PredictionKind::LinearExtrapolation => {
             let entities = futures::executor::block_on(state.entities.read());
+            let history = futures::executor::block_on(state.history.read());
 
             let entity = entities.get(&entity_id).ok_or("Entity not found")?;
+            let entity_history = history.get(&entity_id).ok_or("Entity not found")?;
+
+            if entity_history.len() < 2 {
+                return Err(Box::from("Not enough history"));
+            }
+
+            let current_time = chrono::offset::Utc::now();
 
             debug!("Predictions finished for entity {}", entity_id);
 
@@ -109,7 +153,17 @@ pub fn predict_entity(
                 spacing,
             )?;
 
-            return Ok((entity_id.clone(), predictions, error));
+            let combined_predictions = predictions
+                .iter()
+                .enumerate()
+                .map(|(i, e)| crate::types::Prediction {
+                    position: e.clone(),
+                    error: error.clone(),
+                    date_time: current_time + (spacing * (i as i32)),
+                })
+                .collect();
+
+            return Ok((entity_id.clone(), combined_predictions));
         }
         PredictionKind::GeneticAlgorithm => {
             let history = futures::executor::block_on(state.history.read());
@@ -131,6 +185,7 @@ pub fn predict_entity(
             if (history_duration.num_seconds() / spacing.num_seconds()) < min_history_points {
                 let entities = futures::executor::block_on(state.entities.read());
                 let entity = entities.get(&entity_id).ok_or("Entity not found")?;
+                let current_time = chrono::offset::Utc::now();
 
                 debug!("Predictions finished for entity {}", entity_id);
 
@@ -142,7 +197,17 @@ pub fn predict_entity(
                     spacing,
                 )?;
 
-                return Ok((entity_id.clone(), predictions, error));
+                let combined_predictions = predictions
+                    .iter()
+                    .enumerate()
+                    .map(|(i, e)| crate::types::Prediction {
+                        position: e.clone(),
+                        error: error.clone(),
+                        date_time: current_time + (spacing * (i as i32)),
+                    })
+                    .collect();
+
+                return Ok((entity_id.clone(), combined_predictions));
             }
 
             // Interpolate from the available history.
@@ -167,16 +232,23 @@ pub fn predict_entity(
             }
 
             debug!("Predictions finished for entity {}", entity_id);
+            let current_time = chrono::offset::Utc::now();
 
-            Ok((
-                entity_id.clone(),
-                predictions,
-                Vec3::new(
-                    (error_x / SCALE_FACTOR) as f32,
-                    0.0,
-                    (error_z / SCALE_FACTOR) as f32,
-                ),
-            ))
+            let combined_predictions = predictions
+                .iter()
+                .enumerate()
+                .map(|(i, e)| crate::types::Prediction {
+                    position: e.clone(),
+                    error: Vec3::new(
+                        (error_x / SCALE_FACTOR) as f32,
+                        0.0,
+                        (error_z / SCALE_FACTOR) as f32,
+                    ),
+                    date_time: current_time + (spacing * (i as i32)),
+                })
+                .collect();
+
+            return Ok((entity_id.clone(), combined_predictions));
         }
     }
 }

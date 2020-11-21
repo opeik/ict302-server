@@ -7,6 +7,7 @@ use tracing::{debug, error, info};
 pub async fn send_update(state: State, player_id: PlayerId) -> Result<()> {
     let entities = state.entities.read().await;
     let players = state.players.read().await;
+    let anomalies = state.anomalies.read().await;
 
     let connections = state.connections.read().await;
     let mut connection = connections
@@ -19,6 +20,7 @@ pub async fn send_update(state: State, player_id: PlayerId) -> Result<()> {
         player_id: player_id,
         entities: entities.clone(),
         players: players.clone(),
+        anomalies: anomalies.clone(),
     };
 
     let message = ServerMessage::Update(server_update_data);

@@ -10,11 +10,13 @@ use tokio_serde::{formats::Json, Framed};
 use tokio_util::codec::{Framed as CodecFramed, LengthDelimitedCodec};
 use tracing::{debug, error, info};
 
-use std::collections::VecDeque;
 use std::net::SocketAddr;
 
 pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<()> {
-    let mut predictions;
+    let predictions;
+    let look_behind = Duration::hours(2);
+    let spacing = Duration::minutes(5);
+    let num_predictions = 18;
 
     {
         // Update entity positions.
@@ -40,9 +42,9 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                     Some(prediction::predict_entity(
                         state.clone(),
                         k,
-                        Duration::hours(2),
-                        Duration::minutes(5),
-                        18,
+                        look_behind,
+                        spacing,
+                        num_predictions,
                         prediction::PredictionKind::GeneticAlgorithm,
                     ))
                 } else {
@@ -50,6 +52,7 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                 }
             })
             .collect::<Vec<_>>()
+            // Remove the None values.
             .into_iter()
             .filter_map(|e| e)
             .collect::<Vec<_>>();
@@ -62,12 +65,14 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
         // Cache the predictions.
         for i in predictions.iter() {
             match i {
-                Ok((entity_id, entity_predictions, _error)) => {
+                Ok((entity_id, entity_predictions)) => {
                     let entity = entities
                         .get_mut(&entity_id.clone())
                         .expect("Enable to find entity");
 
-                    entity.prediction_cache.extend(entity_predictions);
+                    for e in entity_predictions {
+                        entity.prediction_cache.push_back(e.clone());
+                    }
                 }
                 Err(e) => error!("Predictions failed: {}", e),
             }
@@ -76,14 +81,39 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
         debug!("Updating entity positions");
 
         // Use the predictions to set the entity position.
-        entities
-            .iter_mut()
-            .for_each(|(k, v)| match v.prediction_cache.pop_front() {
-                Some(e) => {
-                    v.position = e;
+        entities.iter_mut().for_each(|(k, v)| {
+            let current_time = chrono::offset::Utc::now();
+
+            // Check the staleness of the next prediction.
+            if !v.prediction_cache.is_empty() {
+                let prediction = v
+                    .prediction_cache
+                    .front()
+                    .clone()
+                    .expect("Empty prediction cache");
+
+                // The prediction is too old, remove it.
+                if prediction.date_time > current_time {
+                    v.prediction_cache
+                        .pop_front()
+                        .expect("Prediction cache was empty?");
                 }
-                None => error!("Tried to update entity {}, no predictions found", k),
-            });
+            }
+
+            match v.prediction_cache.front() {
+                Some(e) => {
+                    let interpolated_prediction = prediction::interpolate_cached_prediction(
+                        e.clone(),
+                        spacing,
+                        v.position,
+                        current_time.clone(),
+                    );
+
+                    v.position = interpolated_prediction.position;
+                }
+                None => error!("Tried to update entity {} but prediction cache is empty", k),
+            }
+        });
     }
 
     Ok(())

@@ -25,6 +25,7 @@ pub struct State {
     pub players: Arc<RwLock<HashMap<PlayerId, Player>>>,
     pub connections: Arc<RwLock<HashMap<PlayerId, RwLock<Connection>>>>,
     pub next_player_id: Arc<RwLock<PlayerId>>,
+    pub anomalies: Arc<RwLock<Vec<Anomaly>>>,
 }
 
 pub struct Connection {
@@ -42,7 +43,7 @@ pub struct Entity {
     #[serde(skip_serializing_if = "is_true")]
     pub is_interpolated: bool,
     #[serde(skip_serializing)]
-    pub prediction_cache: VecDeque<Vec3>,
+    pub prediction_cache: VecDeque<Prediction>,
 }
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
@@ -57,10 +58,24 @@ pub struct ClientUpdateData {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Prediction {
+    pub position: Vec3,
+    pub error: Vec3,
+    pub date_time: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Anomaly {
+    pub entity_id: String,
+    pub msg: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ServerUpdateData {
     pub player_id: PlayerId,
     pub entities: HashMap<String, Entity>,
     pub players: HashMap<PlayerId, Player>,
+    pub anomalies: Vec<Anomaly>,
 }
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
@@ -89,6 +104,7 @@ impl State {
             players: Arc::new(RwLock::new(HashMap::new())),
             connections: Arc::new(RwLock::new(HashMap::new())),
             next_player_id: Arc::new(RwLock::new(0)),
+            anomalies: Arc::new(RwLock::new(Vec::new())),
         }
     }
 }
@@ -100,7 +116,7 @@ impl Entity {
         velocity: Vec3,
         date_time: DateTime<Utc>,
         is_interpolated: bool,
-        prediction_cache: VecDeque<Vec3>,
+        prediction_cache: VecDeque<Prediction>,
     ) -> Self {
         Self {
             position,
