@@ -17,7 +17,9 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
     let look_behind = Duration::hours(2);
     let spacing = Duration::minutes(5);
     let num_predictions = 18;
-    let mut writer = csv::Writer::from_path("debug.csv")?;
+    let mut writer = csv::Writer::from_path(
+        chrono::offset::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true) + ".csv",
+    )?;
     writer.write_record(&[
         "Entity ID",
         "Actual position",
