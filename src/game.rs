@@ -117,6 +117,7 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                     if prediction::is_entity_in_anomalous_position(v.clone(), entity_history) {
                         let mut anomalies = futures::executor::block_on(state.anomalies.write());
 
+                        info!("Detected position anomaly on entity {}", k);
                         anomalies.push(Anomaly {
                             entity_id: k.clone(),
                             msg: "Anomalous position detected".to_owned(),
