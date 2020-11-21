@@ -21,16 +21,22 @@ fn is_true(v: &bool) -> bool {
 #[derive(Clone)]
 pub struct State {
     pub entities: Arc<RwLock<HashMap<String, Entity>>>,
-    pub history: Arc<RwLock<HashMap<String, Vec<Entity>>>>,
+    pub history: Arc<RwLock<HashMap<String, History>>>,
     pub players: Arc<RwLock<HashMap<PlayerId, Player>>>,
     pub connections: Arc<RwLock<HashMap<PlayerId, RwLock<Connection>>>>,
     pub next_player_id: Arc<RwLock<PlayerId>>,
     pub anomalies: Arc<RwLock<Vec<Anomaly>>>,
+    pub fetched_new_data: Arc<RwLock<bool>>,
 }
 
 pub struct Connection {
     pub framed: MessageFramed,
     pub addr: SocketAddr,
+}
+
+pub struct History {
+    pub history: Vec<Entity>,
+    pub was_updated: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -105,6 +111,7 @@ impl State {
             connections: Arc::new(RwLock::new(HashMap::new())),
             next_player_id: Arc::new(RwLock::new(0)),
             anomalies: Arc::new(RwLock::new(Vec::new())),
+            fetched_new_data: Arc::new(RwLock::new(false)),
         }
     }
 }

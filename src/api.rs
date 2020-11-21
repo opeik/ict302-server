@@ -48,8 +48,6 @@ pub async fn fetch_entities(state: State, time_span: Duration) -> Result<()> {
     assert_eq!(response.vessels.len(), response.result_length);
     info!("Parsed {} entities from response", response.vessels.len());
 
-    let mut entities = state.entities.write().await;
-    // TODO: Does this cause a deadlock?
     let mut history = state.history.write().await;
 
     // Load all the entities into history.
@@ -58,27 +56,23 @@ pub async fn fetch_entities(state: State, time_span: Duration) -> Result<()> {
 
         history
             .entry(entity_id)
-            .or_default()
+            .or_insert(History {
+                was_updated: true,
+                history: vec![],
+            })
+            .history
             .push(new_entity_from_vessel(&v));
     });
 
     // Remove duplicates.
     history.iter_mut().for_each(|(_, v)| {
-        v.dedup_by(|a, b| a.date_time == b.date_time);
+        v.history.dedup_by(|a, b| a.date_time == b.date_time);
     });
 
     // Sort the history by time.
     history.iter_mut().for_each(|(_, v)| {
-        v.sort_by(|a, b| a.date_time.partial_cmp(&b.date_time).unwrap());
-    });
-
-    // Use the last known entity data.
-    history.iter().for_each(|(k, v)| {
-        let latest = v.last().unwrap();
-        entities
-            .entry(k.clone())
-            .and_modify(|e| *e = latest.clone())
-            .or_insert(latest.clone());
+        v.history
+            .sort_by(|a, b| a.date_time.partial_cmp(&b.date_time).unwrap());
     });
 
     info!("Updated state with new entity data");

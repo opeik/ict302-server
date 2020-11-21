@@ -163,7 +163,11 @@ pub fn predict_entity(
             let history = futures::executor::block_on(state.history.read());
 
             let entity = entities.get(&entity_id).ok_or("Entity not found")?;
-            let entity_history = history.get(&entity_id).ok_or("Entity not found")?;
+            let entity_history = &history
+                .get(&entity_id)
+                .ok_or("Entity not found")?
+                .history
+                .clone();
 
             if entity_history.len() < 2 {
                 return Err(Box::from("Not enough history"));
@@ -195,7 +199,11 @@ pub fn predict_entity(
         }
         PredictionKind::GeneticAlgorithm => {
             let history = futures::executor::block_on(state.history.read());
-            let entity_history = history.get(&entity_id).ok_or("Entity not found")?;
+            let entity_history = &history
+                .get(&entity_id)
+                .ok_or("Entity not found")?
+                .history
+                .clone();
 
             if entity_history.len() < 2 {
                 return Err(Box::from("Not enough history"));
@@ -288,7 +296,11 @@ async fn interpolate_entity_history(
     spacing: Duration,
 ) -> Result<(Vec<f64>, Vec<f64>, Vec<f64>)> {
     let history = state.history.read().await;
-    let entity_history = history.get(&entity_id).ok_or("Entity not found")?;
+    let entity_history = &history
+        .get(&entity_id)
+        .ok_or("Entity not found")?
+        .history
+        .clone();
 
     assert!(entity_history.len() >= 2);
     let first_update_time = entity_history.first().expect("No history found").date_time;
@@ -297,7 +309,7 @@ async fn interpolate_entity_history(
 
     // Collect each historical x position.
     let x_keys = entity_history
-        .into_iter()
+        .iter()
         .map(|e| {
             Key::new(
                 e.date_time.timestamp() as f64,
@@ -309,7 +321,7 @@ async fn interpolate_entity_history(
 
     // Collect each historical z position.
     let z_keys = entity_history
-        .into_iter()
+        .iter()
         .map(|e| {
             Key::new(
                 e.date_time.timestamp() as f64,

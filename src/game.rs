@@ -18,6 +18,21 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
     let spacing = Duration::minutes(5);
     let num_predictions = 18;
 
+    // Check for new data, update the entity positions with that.
+    {
+        let mut entities = state.entities.write().await;
+        let history = state.history.read().await;
+
+        history.iter().for_each(|(k, v)| {
+            let latest = v.history.last().unwrap();
+
+            entities
+                .entry(k.clone())
+                .and_modify(|e| *e = latest.clone())
+                .or_insert(latest.clone());
+        });
+    }
+
     {
         let entities;
 
@@ -114,7 +129,10 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                     let entity_history = history.get(k).expect("Missing entity id").clone();
 
                     // Check for anomalies.
-                    if prediction::is_entity_in_anomalous_position(v.clone(), entity_history) {
+                    if prediction::is_entity_in_anomalous_position(
+                        v.clone(),
+                        entity_history.history.clone(),
+                    ) {
                         let mut anomalies = futures::executor::block_on(state.anomalies.write());
 
                         info!("Detected position anomaly on entity {}", k);
