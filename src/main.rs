@@ -24,7 +24,8 @@ async fn main() -> Result<()> {
     let state = State::new();
 
     // Fetch the initial entity state from the API.
-    match api::fetch_entities(state.clone(), Duration::days(1)).await {
+    // TODO: REVERT TO 1 day
+    match api::fetch_entities(state.clone(), Duration::minutes(2)).await {
         Ok(_) => info!("Fetched initial entity data from API"),
         Err(e) => error!("Failed to fetch data from API: {}", e),
     };

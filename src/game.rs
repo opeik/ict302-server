@@ -24,12 +24,14 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
         let history = state.history.read().await;
 
         history.iter().for_each(|(k, v)| {
-            let latest = v.history.last().unwrap();
+            if v.was_updated {
+                let latest = v.history.last().unwrap();
 
-            entities
-                .entry(k.clone())
-                .and_modify(|e| *e = latest.clone())
-                .or_insert(latest.clone());
+                entities
+                    .entry(k.clone())
+                    .and_modify(|e| *e = latest.clone())
+                    .or_insert(latest.clone());
+            }
         });
     }
 
