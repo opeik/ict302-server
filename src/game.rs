@@ -78,6 +78,7 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
         debug!("Updating entity prediction caches");
         let mut entities = state.entities.write().await;
         let history = state.history.read().await;
+        let mut anomalies = futures::executor::block_on(state.anomalies.write());
 
         // Cache the predictions.
         for i in predictions.iter() {
@@ -135,8 +136,6 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                         v.clone(),
                         entity_history.history.clone(),
                     ) {
-                        let mut anomalies = futures::executor::block_on(state.anomalies.write());
-
                         info!("Detected position anomaly on entity {}", k);
                         anomalies.push(Anomaly {
                             entity_id: k.clone(),

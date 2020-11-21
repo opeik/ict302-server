@@ -24,7 +24,7 @@ async fn main() -> Result<()> {
     let state = State::new();
 
     // Fetch the initial entity state from the API.
-    match api::fetch_entities(state.clone(), Duration::days(1)).await {
+    match api::fetch_entities(state.clone(), Duration::days(2)).await {
         Ok(_) => info!("Fetched initial entity data from API"),
         Err(e) => error!("Failed to fetch data from API: {}", e),
     };
@@ -32,10 +32,7 @@ async fn main() -> Result<()> {
     // Run each task concurrently, stopping all if any return.
     let status = tokio::select! {
         e = tokio::task::spawn(connection_handler(state.clone())) => e.unwrap(),
-        e = {
-            let state = state.clone();
-            tokio::task::spawn_blocking(move || game_loop(state.clone()))
-        } => e.unwrap().await,
+        e = tokio::task::spawn(game_loop(state.clone())) => e.unwrap(),
     };
 
     match status {
@@ -77,17 +74,5 @@ async fn game_loop(state: State) -> Result<()> {
         game::send_updates(state.clone()).await?;
         // Send updates from players.
         game::receive_updates(state.clone()).await?;
-    }
-}
-
-async fn data_fetcher(state: State) -> Result<()> {
-    loop {
-        delay_for(Duration::minutes(1).to_std().unwrap()).await;
-        debug!("Data fetcher tick");
-
-        match api::fetch_entities(state.clone(), Duration::minutes(2)).await {
-            Ok(_) => info!("Fetched entity data from API"),
-            Err(e) => error!("Failed to fetch data from API: {}", e),
-        };
     }
 }
