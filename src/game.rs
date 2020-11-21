@@ -57,19 +57,19 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
         let mut entities = state.entities.write().await;
 
         // Cache the predictions.
-        for (i, (_, v)) in entities.iter_mut().enumerate() {
-            if v.prediction_cache.is_empty() && i < predictions.len() {
-                match predictions.remove(i) {
-                    Some(e) => match e {
-                        Ok((entity_predictions, _error)) => {
-                            v.prediction_cache = VecDeque::from(entity_predictions);
-                        }
-                        Err(e) => {
-                            error!("Entity {} failed to predict {}", i, e);
-                        }
-                    },
-                    None => error!("Invalid prediction index?"),
-                }
+        for i in predictions.iter() {
+            match i {
+                Some(e) => match e {
+                    Ok((entity_id, entity_predictions, _error)) => {
+                        let entity = entities
+                            .get_mut(&entity_id.clone())
+                            .expect("Enable to find entity");
+
+                        entity.prediction_cache.extend(entity_predictions);
+                    }
+                    Err(e) => {}
+                },
+                None => error!("How did you get here?"),
             }
         }
 

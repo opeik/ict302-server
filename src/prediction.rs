@@ -92,22 +92,24 @@ pub fn predict_entity(
     spacing: Duration,
     num_predictions: usize,
     kind: PredictionKind,
-) -> Result<(Vec<Vec3>, Vec3)> {
-    debug!("Starting predictions on entity {}", entity_id);
-
+) -> Result<(String, Vec<Vec3>, Vec3)> {
     match kind {
         PredictionKind::LinearExtrapolation => {
             let entities = futures::executor::block_on(state.entities.read());
 
             let entity = entities.get(&entity_id).ok_or("Entity not found")?;
 
-            return Ok(run_linear_extrapolation_prediction(
+            debug!("Predictions finished for entity {}", entity_id);
+
+            let (predictions, error) = run_linear_extrapolation_prediction(
                 entity.position,
                 entity.angles,
                 entity.velocity,
                 num_predictions,
                 spacing,
-            )?);
+            )?;
+
+            return Ok((entity_id.clone(), predictions, error));
         }
         PredictionKind::GeneticAlgorithm => {
             let history = futures::executor::block_on(state.history.read());
@@ -130,13 +132,17 @@ pub fn predict_entity(
                 let entities = futures::executor::block_on(state.entities.read());
                 let entity = entities.get(&entity_id).ok_or("Entity not found")?;
 
-                return Ok(run_linear_extrapolation_prediction(
+                debug!("Predictions finished for entity {}", entity_id);
+
+                let (predictions, error) = run_linear_extrapolation_prediction(
                     entity.position,
                     entity.angles,
                     entity.velocity,
                     num_predictions,
                     spacing,
-                )?);
+                )?;
+
+                return Ok((entity_id.clone(), predictions, error));
             }
 
             // Interpolate from the available history.
@@ -160,7 +166,10 @@ pub fn predict_entity(
                 ));
             }
 
+            debug!("Predictions finished for entity {}", entity_id);
+
             Ok((
+                entity_id.clone(),
                 predictions,
                 Vec3::new(
                     (error_x / SCALE_FACTOR) as f32,
