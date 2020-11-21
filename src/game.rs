@@ -134,7 +134,10 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                     v.position = interpolated_prediction.position;
 
                     if !is_position_valid(v.position) {
-                        warn!("Entity {} is in an invalid position {}", k, v.position);
+                        warn!(
+                            "Entity {} is in an invalid position {{{}, {}}}",
+                            k, v.position.x, v.position.z
+                        );
                     }
 
                     let entity_history = history.get(k).expect("Missing entity id").clone();
