@@ -8,7 +8,7 @@ use rayon::prelude::*;
 use tokio::{net::TcpStream, sync::RwLock};
 use tokio_serde::{formats::Json, Framed};
 use tokio_util::codec::{Framed as CodecFramed, LengthDelimitedCodec};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use std::net::SocketAddr;
 
@@ -132,6 +132,11 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
 
                     // Update the position from the cached prediction.
                     v.position = interpolated_prediction.position;
+
+                    if !is_position_valid(v.position) {
+                        warn!("Entity {} is in an invalid position {}", k, v.position);
+                    }
+
                     let entity_history = history.get(k).expect("Missing entity id").clone();
 
                     // Check for anomalies.
@@ -146,7 +151,7 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                         });
                     }
                 }
-                None => error!("Tried to update entity {} but prediction cache is empty", k),
+                None => (),
             }
         });
     }
@@ -254,4 +259,13 @@ pub async fn new_player(state: State, stream: TcpStream, addr: SocketAddr) -> Re
     info!("Player {} connected from {:?}", new_player_id, addr);
 
     Ok(())
+}
+
+fn is_position_valid(position: Vec3) -> bool {
+    const MIN_X: f32 = -75.0;
+    const MAX_X: f32 = 163.0;
+    const MIN_Z: f32 = -70.31605;
+    const MAX_Z: f32 = -2.001192;
+
+    position.x >= MIN_X && position.x <= MAX_X && position.z >= MIN_Z && position.z <= MAX_Z
 }
