@@ -24,8 +24,7 @@ async fn main() -> Result<()> {
     let state = State::new();
 
     // Fetch the initial entity state from the API.
-    // TODO: REVERT TO 1 day
-    match api::fetch_entities(state.clone(), Duration::minutes(2)).await {
+    match api::fetch_entities(state.clone(), Duration::days(1)).await {
         Ok(_) => info!("Fetched initial entity data from API"),
         Err(e) => error!("Failed to fetch data from API: {}", e),
     };
@@ -36,7 +35,7 @@ async fn main() -> Result<()> {
         e = tokio::task::spawn(data_fetcher(state.clone())) => e.unwrap(),
         e = {
             let state = state.clone();
-            tokio::task::spawn_blocking(move || game_loop(state.clone()) )
+            tokio::task::spawn_blocking(move || game_loop(state.clone()))
         } => e.unwrap().await,
     };
 
