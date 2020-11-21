@@ -50,6 +50,8 @@ pub struct Entity {
     pub is_interpolated: bool,
     #[serde(skip_serializing)]
     pub prediction_cache: VecDeque<Prediction>,
+    #[serde(skip_serializing)]
+    pub num_stale_predictions: i32,
 }
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
@@ -132,6 +134,7 @@ impl Entity {
             date_time,
             is_interpolated,
             prediction_cache,
+            num_stale_predictions: 0,
         }
     }
 }

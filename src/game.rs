@@ -17,6 +17,14 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
     let look_behind = Duration::hours(2);
     let spacing = Duration::minutes(5);
     let num_predictions = 18;
+    let mut writer = csv::Writer::from_path("debug.csv")?;
+    writer.write_record(&[
+        "Entity ID",
+        "Actual position",
+        "Predicted position",
+        "Error",
+        "Stale predictions",
+    ])?;
 
     // Check for new data, update the entity positions with that.
     {
@@ -58,37 +66,14 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                 let v = v.clone();
 
                 if v.prediction_cache.is_empty() {
-                    loop {
-                        let result = prediction::predict_entity(
-                            state.clone(),
-                            k.clone(),
-                            look_behind,
-                            spacing,
-                            num_predictions,
-                            prediction::PredictionKind::GeneticAlgorithm,
-                        );
-
-                        match result {
-                            Ok((_, ref predictions)) => {
-                                let mut predictions_valid = true;
-
-                                let first = predictions.first().expect("Missing first prediction");
-
-                                if !is_position_valid(first.position) {
-                                    predictions_valid = false;
-                                    warn!(
-                                        "Prediction for entity {} was invalid, regenerating...",
-                                        k
-                                    );
-                                }
-
-                                if predictions_valid {
-                                    return Some(result);
-                                }
-                            }
-                            Err(_e) => (),
-                        }
-                    }
+                    Some(prediction::predict_entity(
+                        state.clone(),
+                        k,
+                        look_behind,
+                        spacing,
+                        num_predictions,
+                        prediction::PredictionKind::GeneticAlgorithm,
+                    ))
                 } else {
                     None
                 }
@@ -141,6 +126,7 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                     v.prediction_cache
                         .pop_front()
                         .expect("Prediction cache was empty?");
+                    v.num_stale_predictions += 1;
                 }
             }
 
@@ -175,6 +161,16 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                             entity_id: k.clone(),
                             msg: "Anomalous position detected".to_owned(),
                         });
+
+                        writer
+                            .serialize((
+                                k,
+                                v.position.to_string(),
+                                v.prediction_cache.front().unwrap().position,
+                                v.prediction_cache.front().unwrap().error,
+                                v.num_stale_predictions,
+                            ))
+                            .expect("Failed to write csv");
                     }
                 }
                 None => (),
