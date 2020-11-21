@@ -7,6 +7,7 @@ use lazy_static::lazy_static;
 use libc::c_double;
 use libloading::{Library, Symbol};
 use nalgebra_glm::Vec3;
+use serde::{Deserialize, Serialize};
 use splines::{Interpolation, Key, Spline};
 use tracing::debug;
 
@@ -78,7 +79,7 @@ impl Prediction {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Serialize, Deserialize, Debug)]
 pub enum PredictionKind {
     LinearExtrapolation,
     GeneticAlgorithm,

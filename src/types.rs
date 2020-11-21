@@ -52,6 +52,7 @@ pub struct Entity {
     pub prediction_cache: VecDeque<Prediction>,
     #[serde(skip_serializing)]
     pub num_stale_predictions: i32,
+    pub prediction_kind: Option<crate::prediction::PredictionKind>,
 }
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
@@ -77,7 +78,6 @@ pub struct Prediction {
 pub struct Anomaly {
     pub entity_id: String,
     pub msg: String,
-    pub prediction_kind: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -137,6 +137,7 @@ impl Entity {
             is_interpolated,
             prediction_cache,
             num_stale_predictions: 0,
+            prediction_kind: None,
         }
     }
 }

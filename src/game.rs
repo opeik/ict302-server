@@ -186,6 +186,7 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
 
                     // Update the position from the cached prediction.
                     v.position = interpolated_prediction.position;
+                    v.prediction_kind = Some(e.kind);
 
                     if !is_position_valid(v.position) {
                         warn!(
@@ -205,7 +206,6 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                         anomalies.push(Anomaly {
                             entity_id: k.clone(),
                             msg: "Anomalous position detected".to_owned(),
-                            prediction_kind: e.kind.to_string(),
                         });
 
                         writer
