@@ -130,10 +130,10 @@ pub fn interpolate_cached_prediction(
     );
     let spline_x = Spline::from_vec(vec![start_x, end_x]);
 
-    let start_z = Key::new(start_time as f64, current_position.x, Interpolation::Linear);
+    let start_z = Key::new(start_time as f64, current_position.z, Interpolation::Linear);
     let end_z = Key::new(
         end_time as f64,
-        prediction.position.x,
+        prediction.position.z,
         Interpolation::default(),
     );
     let spline_z = Spline::from_vec(vec![start_z, end_z]);
