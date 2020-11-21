@@ -72,14 +72,14 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                             Ok((_, ref predictions)) => {
                                 let mut predictions_valid = true;
 
-                                for prediction in predictions {
-                                    if !is_position_valid(prediction.position) {
-                                        predictions_valid = false;
-                                        warn!(
-                                            "Prediction for entity {} was invalid, regenerating...",
-                                            k
-                                        );
-                                    }
+                                let first = predictions.first().expect("Missing first prediction");
+
+                                if !is_position_valid(first.position) {
+                                    predictions_valid = false;
+                                    warn!(
+                                        "Prediction for entity {} was invalid, regenerating...",
+                                        k
+                                    );
                                 }
 
                                 if predictions_valid {
