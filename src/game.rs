@@ -162,8 +162,8 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                             .serialize((
                                 k,
                                 v.position.to_string(),
-                                v.prediction_cache.front().unwrap().position.to_string(),
-                                v.prediction_cache.front().unwrap().error.to_string(),
+                                v.prediction_cache.front().unwrap().position,
+                                v.prediction_cache.front().unwrap().error,
                                 v.num_stale_predictions,
                             ))
                             .expect("Failed to write csv");
