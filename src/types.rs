@@ -48,7 +48,7 @@ pub struct Entity {
     pub date_time: DateTime<Utc>,
     #[serde(skip_serializing_if = "is_true")]
     pub is_interpolated: bool,
-    #[serde(skip_serializing)]
+    #[serde(skip)]
     pub prediction_cache: VecDeque<Prediction>,
     #[serde(skip_serializing)]
     pub num_stale_predictions: i32,
@@ -65,11 +65,12 @@ pub struct ClientUpdateData {
     pub angles: Vec3,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug)]
 pub struct Prediction {
     pub position: Vec3,
     pub error: Vec3,
     pub date_time: DateTime<Utc>,
+    pub kind: crate::prediction::PredictionKind,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

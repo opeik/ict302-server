@@ -76,8 +76,8 @@ impl Prediction {
     }
 }
 
+#[derive(Clone, Debug)]
 pub enum PredictionKind {
-    #[allow(dead_code)]
     LinearExtrapolation,
     GeneticAlgorithm,
 }
@@ -150,6 +150,7 @@ pub fn interpolate_cached_prediction(
         ),
         error: prediction.error,
         date_time: current_time,
+        kind: PredictionKind::LinearExtrapolation,
     }
 }
 
@@ -196,6 +197,7 @@ pub fn predict_entity(
                     position: e.clone(),
                     error: error.clone(),
                     date_time: current_time + (spacing * (i as i32)),
+                    kind: PredictionKind::LinearExtrapolation,
                 })
                 .collect();
 
@@ -244,6 +246,7 @@ pub fn predict_entity(
                         position: e.clone(),
                         error: error.clone(),
                         date_time: current_time + (spacing * (i as i32)),
+                        kind: PredictionKind::GeneticAlgorithm,
                     })
                     .collect();
 
@@ -285,6 +288,7 @@ pub fn predict_entity(
                         (error_z / SCALE_FACTOR) as f32,
                     ),
                     date_time: current_time + (spacing * (i as i32)),
+                    kind: PredictionKind::GeneticAlgorithm,
                 })
                 .collect();
 
@@ -366,35 +370,28 @@ pub fn run_linear_extrapolation_prediction(
     angles: Vec3,
     velocity: Vec3,
     num_predictions: usize,
-    delta_time: Duration,
+    spacing: Duration,
 ) -> Result<(Vec<Vec3>, Vec3)> {
-    // Earth radius in meters.
-    const EARTH_RADIUS: f32 = 63711000.0;
-
-    assert!(delta_time > Duration::zero(), "Negative delta time");
-
     let mut predictions = vec![];
 
     for i in 0..num_predictions {
-        let delta_time = (delta_time.num_seconds() as f32) * ((i as f32) + 1.0);
-        let distance =
-            ((velocity.x * delta_time).powf(2.0) + (velocity.z * delta_time).powf(2.0)).sqrt();
+        let velocity = velocity * (spacing.num_seconds() as f32 * (i as f32 + 1.0));
 
-        let latitude = (position.z.to_radians().sin() * (distance / EARTH_RADIUS).cos()
-            + position.z.to_radians().cos()
-                * (distance / EARTH_RADIUS).sin()
-                * angles.y.to_radians().cos())
-        .asin()
-        .to_degrees();
+        let distance = (velocity.x.powf(2.0) + velocity.z.powf(2.0)).sqrt();
+        let r: f32 = 63711000.0; // Earth Radius in m
 
-        let longitude = position.x.to_radians()
-            + (angles.y.to_radians().sin()
-                * (distance / EARTH_RADIUS).sin()
-                * position.z.to_radians().cos())
-            .atan2((distance / EARTH_RADIUS).cos() - position.z.to_radians().sin() * latitude.sin())
-            .to_degrees();
+        let lat2 = (position.z.to_radians().sin() * (distance / r).cos()
+            + position.z.to_radians().cos() * (distance / r).sin() * angles.y.to_radians().cos())
+        .asin();
 
-        predictions.push(Vec3::new(longitude, 0.0, latitude));
+        let lon2 = position.x.to_radians()
+            + (angles.y.to_radians().sin() * (distance / r).sin() * position.z.to_radians().cos())
+                .atan2((distance / r).cos() - position.z.to_radians().sin() * lat2.sin());
+
+        let x = lon2.to_degrees();
+        let z = lat2.to_degrees();
+
+        predictions.push(Vec3::new(x, 0.0, z));
     }
 
     Ok((
