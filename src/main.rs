@@ -32,7 +32,6 @@ async fn main() -> Result<()> {
     // Run each task concurrently, stopping all if any return.
     let status = tokio::select! {
         e = tokio::task::spawn(connection_handler(state.clone())) => e.unwrap(),
-        e = tokio::task::spawn(data_fetcher(state.clone())) => e.unwrap(),
         e = {
             let state = state.clone();
             tokio::task::spawn_blocking(move || game_loop(state.clone()))
@@ -65,6 +64,12 @@ async fn game_loop(state: State) -> Result<()> {
         let delta_time = Duration::seconds(1);
         delay_for(delta_time.to_std().unwrap()).await;
         debug!("Game loop tick");
+
+        // Fetch data.
+        match api::fetch_entities(state.clone(), Duration::minutes(2)).await {
+            Ok(_) => info!("Fetched entity data from API"),
+            Err(e) => error!("Failed to fetch data from API: {}", e),
+        };
 
         // Update all entities.
         game::advance_simulation(state.clone(), delta_time).await?;
