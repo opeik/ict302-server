@@ -58,7 +58,7 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
 
         // Cache the predictions.
         for (i, (_, v)) in entities.iter_mut().enumerate() {
-            if v.prediction_cache.is_empty() {
+            if v.prediction_cache.is_empty() && i < predictions.len() {
                 match predictions.remove(i) {
                     Some(e) => match e {
                         Ok((entity_predictions, _error)) => {
