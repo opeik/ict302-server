@@ -74,5 +74,8 @@ async fn game_loop(state: State) -> Result<()> {
         game::send_updates(state.clone()).await?;
         // Send updates from players.
         game::receive_updates(state.clone()).await?;
+
+        let mut anomalies = state.anomalies.write().await;
+        anomalies.clear();
     }
 }
