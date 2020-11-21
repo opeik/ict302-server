@@ -8,7 +8,7 @@ use rayon::prelude::*;
 use tokio::{net::TcpStream, sync::RwLock};
 use tokio_serde::{formats::Json, Framed};
 use tokio_util::codec::{Framed as CodecFramed, LengthDelimitedCodec};
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 use std::collections::VecDeque;
 use std::net::SocketAddr;
@@ -59,8 +59,14 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
         // Cache the predictions.
         for (i, (_, v)) in entities.iter_mut().enumerate() {
             if v.prediction_cache.is_empty() {
-                let (entity_predictions, _error) = predictions.remove(i).unwrap().unwrap();
-                v.prediction_cache = VecDeque::from(entity_predictions);
+                match predictions.remove(i).unwrap() {
+                    Ok((entity_predictions, _error)) => {
+                        v.prediction_cache = VecDeque::from(entity_predictions);
+                    }
+                    Err(e) => {
+                        error!("Entity {} failed to predict {}", i, e);
+                    }
+                }
             }
         }
 
