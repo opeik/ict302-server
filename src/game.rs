@@ -106,7 +106,7 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                                     Ok(_) => {
                                         return Some(result);
                                     }
-                                    Err(_) => error!(
+                                    Err(_) => panic!(
                                         "Unable to check predictions were sane, what the hell?"
                                     ),
                                 }
@@ -114,12 +114,6 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                             Err(_e) => (),
                         }
                     }
-
-                    debug!(
-                        "Failed {} prediction regenerations for entity {}, using linear extrapolation",
-                        MAX_REGENERATION_ATTEMPTS, k
-                    );
-
 
                     // Screw it, use linear extrapolation.
                     Some(prediction::predict_entity(
@@ -397,6 +391,9 @@ fn detect_position_anomaly(
     let factor = (staleness as f32).powf(STEP_EXPONENT);
     let bounds_x = CONFIDENCE_INTERVAL_MULTIPLIER * error.x * factor;
     let bounds_z = CONFIDENCE_INTERVAL_MULTIPLIER * error.z * factor;
+
+    // SANITY CHECK, REMOVE!
+    return false;
 
     if actual_position.x >= (current_position.x - bounds_x)
         && actual_position.x <= (current_position.x + bounds_x)
