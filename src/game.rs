@@ -219,6 +219,17 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
         });
     }
 
+    // Blasted deadlocks.
+    {
+        let mut players = state.players.write().await;
+
+        players.iter_mut().for_each(|(_, v)| {
+            if v.is_authenticated && !v.did_send_auth_status {
+                v.did_send_auth_status = true;
+            }
+        })
+    }
+
     Ok(())
 }
 
