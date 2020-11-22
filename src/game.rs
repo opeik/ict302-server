@@ -19,22 +19,6 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
     let look_behind = Duration::hours(2);
     let spacing = Duration::minutes(5);
     let num_predictions = 18;
-    let mut writer = csv::Writer::from_path(
-        chrono::offset::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true) + ".csv",
-    )?;
-    writer.write_record(&[
-        "id",
-        "actual_x",
-        "actual_y",
-        "actual_z",
-        "predicted_x",
-        "predicted_y",
-        "predicted_z",
-        "error_x",
-        "error_y",
-        "error_z",
-        "staleness",
-    ])?;
 
     // Check for new data, update the entity positions with that.
     {
@@ -46,25 +30,29 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
             if v.was_updated {
                 v.was_updated = false;
                 let latest = v.history.last().unwrap();
-                let entity = entities.get(&k.clone()).expect("Enable to find entity");
+                let entity = entities.get(&k.clone());
 
-                let is_anomalous = detect_position_anomaly(
-                    entity.position,
-                    latest.position,
-                    entity
-                        .prediction_cache
-                        .front()
-                        .expect("Missing predictions")
-                        .error,
-                    entity.num_stale_predictions,
-                );
+                match entity {
+                    Some(e) => {
+                        let is_anomalous = detect_position_anomaly(
+                            e.position,
+                            latest.position,
+                            e.prediction_cache
+                                .front()
+                                .expect("Missing predictions")
+                                .error,
+                            e.num_stale_predictions,
+                        );
 
-                if is_anomalous {
-                    info!("Detected position anomaly on entity {}", k);
-                    anomalies.push(Anomaly {
-                        entity_id: k.clone(),
-                        msg: "Anomalous position detected".to_owned(),
-                    });
+                        if is_anomalous {
+                            debug!("Detected position anomaly on entity {}", k);
+                            anomalies.push(Anomaly {
+                                entity_id: k.clone(),
+                                msg: "Anomalous position detected".to_owned(),
+                            });
+                        }
+                    }
+                    None => {}
                 }
 
                 entities
