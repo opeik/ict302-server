@@ -1,0 +1,16 @@
+#Put me in /lib/systemd/system/
+[Unit]
+Description=ICT 302 server
+After=network.target ict302-mock-api.service
+
+[Service]
+Type=simple
+User=student
+Environment="RUST_LOG=info,warn"
+TTYPath=/dev/tty
+WorkingDirectory=/home/student/server
+ExecStart=/home/student/.cargo/bin/cargo run --release
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

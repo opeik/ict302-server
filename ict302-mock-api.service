@@ -1,0 +1,14 @@
+#Put me in /lib/systemd/system/
+[Unit]
+Description=ICT 302 mock api
+After=network.target
+
+[Service]
+Type=simple
+User=student
+WorkingDirectory=/home/student/mock-api
+ExecStart=/usr/bin/python3 http_server.py -s 2-1-2018
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
