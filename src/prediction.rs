@@ -416,7 +416,7 @@ fn run_genetic_algorithm_prediction(
     assert!(history.len() == EXPECTED_HISTORY_LENGTH);
     assert!(num_predictions >= 1);
 
-    let settings_ffi = Settings::new(12, 42069, 15.0, 0);
+    let settings_ffi = Settings::new(12, -1, 15.0, 0);
 
     // Create the prediction result vector.
     let mut result_ffi = vec![0.0; num_predictions];

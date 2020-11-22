@@ -1,4 +1,5 @@
 mod api;
+mod auth;
 mod game;
 mod net;
 mod prediction;

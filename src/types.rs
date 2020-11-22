@@ -55,10 +55,12 @@ pub struct Entity {
     pub prediction_kind: Option<crate::prediction::PredictionKind>,
 }
 
-#[derive(Copy, Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Player {
     pub position: Vec3,
     pub angles: Vec3,
+    pub is_authenticated: bool,
+    pub username: String,
 }
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
 pub struct ClientUpdateData {
@@ -144,7 +146,12 @@ impl Entity {
 
 impl Player {
     pub fn new(position: Vec3, angles: Vec3) -> Self {
-        Self { position, angles }
+        Self {
+            position,
+            angles,
+            is_authenticated: false,
+            username: "".to_owned(),
+        }
     }
 }
 
