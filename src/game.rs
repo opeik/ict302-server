@@ -91,7 +91,7 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                             look_behind,
                             spacing,
                             num_predictions,
-                            prediction::PredictionKind::LinearExtrapolation,
+                            prediction::PredictionKind::GeneticAlgorithm,
                         );
 
                         // Check if the values are sane, if they aren't, try regenerating.
@@ -203,49 +203,6 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                 v.did_send_auth_status = true;
             }
         })
-    }
-
-    {
-        let entities = state.entities.read().await;
-        let mut id_linear = state.id_linear.write().await;
-        let mut id_genetic = state.id_genetic.write().await;
-
-        if id_linear.len() == 0 {
-            let (k, _) = entities
-                .iter()
-                .find(|(k, v)| match v.prediction_cache.front().unwrap().kind {
-                    prediction::PredictionKind::LinearExtrapolation => true,
-                    _ => false,
-                })
-                .unwrap();
-
-            *id_linear = k.to_owned();
-        }
-
-        if id_genetic.len() == 0 {
-            let (k, _) = entities
-                .iter()
-                .find(|(k, v)| match v.prediction_cache.front().unwrap().kind {
-                    prediction::PredictionKind::GeneticAlgorithm => true,
-                    _ => false,
-                })
-                .unwrap();
-
-            *id_genetic = k.to_owned();
-        }
-
-        let entity_linear = entities.get(&*id_linear).expect("Enable to find entity");
-        let entity_genetic = entities.get(&*id_genetic).expect("Enable to find entity");
-
-        info!(
-            "Entity {} linear position {:?}",
-            *id_linear, entity_linear.position
-        );
-
-        info!(
-            "Entity {} genetic position {:?}",
-            *id_genetic, entity_genetic.position
-        );
     }
 
     Ok(())

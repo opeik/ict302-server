@@ -104,27 +104,36 @@ pub fn interpolate_cached_prediction(
     let start_time = prediction.date_time.timestamp();
     let end_time = (prediction.date_time + spacing).timestamp();
 
-    let start_x = Key::new(start_time as f64, current_position.x, Interpolation::Linear);
+    let start_x = Key::new(
+        start_time as f64,
+        current_position.x * (SCALE_FACTOR as f32),
+        Interpolation::Linear,
+    );
     let end_x = Key::new(
         end_time as f64,
-        prediction.position.x,
+        prediction.position.x * (SCALE_FACTOR as f32),
         Interpolation::default(),
     );
     let spline_x = Spline::from_vec(vec![start_x, end_x]);
 
-    let start_z = Key::new(start_time as f64, current_position.z, Interpolation::Linear);
+    let start_z = Key::new(
+        start_time as f64,
+        current_position.z * (SCALE_FACTOR as f32),
+        Interpolation::Linear,
+    );
     let end_z = Key::new(
         end_time as f64,
-        prediction.position.z,
+        prediction.position.z * (SCALE_FACTOR as f32),
         Interpolation::default(),
     );
+
     let spline_z = Spline::from_vec(vec![start_z, end_z]);
 
     crate::types::Prediction {
         position: Vec3::new(
-            spline_x.sample(current_time.timestamp() as f64).unwrap(),
+            spline_x.sample(current_time.timestamp() as f64).unwrap() / (SCALE_FACTOR as f32),
             0.0,
-            spline_z.sample(current_time.timestamp() as f64).unwrap(),
+            spline_z.sample(current_time.timestamp() as f64).unwrap() / (SCALE_FACTOR as f32),
         ),
         error: prediction.error,
         date_time: current_time,
