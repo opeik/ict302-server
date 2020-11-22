@@ -8,7 +8,7 @@ use rayon::prelude::*;
 use tokio::{net::TcpStream, sync::RwLock};
 use tokio_serde::{formats::Json, Framed};
 use tokio_util::codec::{Framed as CodecFramed, LengthDelimitedCodec};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 use std::net::SocketAddr;
 
@@ -106,11 +106,6 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                         }
                     }
                     // Screw it, use linear extrapolation.
-                    warn!(
-                        "Failed {} prediction regenerations for entity {}, using linear extrapolation",
-                        MAX_REGENERATION_ATTEMPTS, k
-                    );
-
                     Some(prediction::predict_entity(
                         state.clone(),
                         k.clone(),
@@ -148,7 +143,7 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                         entity.prediction_cache.push_back(e.clone());
                     }
                 }
-                Err(e) => error!("Predictions failed: {}", e),
+                Err(_) => {}
             }
         }
 
