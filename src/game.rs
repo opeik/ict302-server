@@ -8,7 +8,7 @@ use rayon::prelude::*;
 use tokio::{net::TcpStream, sync::RwLock};
 use tokio_serde::{formats::Json, Framed};
 use tokio_util::codec::{Framed as CodecFramed, LengthDelimitedCodec};
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info};
 
 use std::net::SocketAddr;
 
@@ -40,11 +40,32 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
     {
         let mut entities = state.entities.write().await;
         let mut history = state.history.write().await;
+        let mut anomalies = state.anomalies.write().await;
 
         history.iter_mut().for_each(|(k, v)| {
             if v.was_updated {
                 v.was_updated = false;
                 let latest = v.history.last().unwrap();
+                let entity = entities.get(&k.clone()).expect("Enable to find entity");
+
+                let is_anomalous = detect_position_anomaly(
+                    entity.position,
+                    latest.position,
+                    entity
+                        .prediction_cache
+                        .front()
+                        .expect("Missing predictions")
+                        .error,
+                    entity.num_stale_predictions,
+                );
+
+                if is_anomalous {
+                    info!("Detected position anomaly on entity {}", k);
+                    anomalies.push(Anomaly {
+                        entity_id: k.clone(),
+                        msg: "Anomalous position detected".to_owned(),
+                    });
+                }
 
                 entities
                     .entry(k.clone())
@@ -89,22 +110,29 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
 
                         // Check if the values are sane, if they aren't, try regenerating.
                         match result {
-                            Ok((_, ref predictions)) => {
-                                let mut predictions_valid = true;
+                            Ok((_, ref _predictions)) => {
+                                let predictions_sane =
+                                    are_predictions_sane(k.clone(), state.clone());
 
-                                for prediction in predictions {
-                                    if !is_position_valid(prediction.position) {
-                                        predictions_valid = false;
+                                match predictions_sane {
+                                    Ok(_) => {
+                                        return Some(result);
                                     }
-                                }
-
-                                if predictions_valid {
-                                    return Some(result);
+                                    Err(_) => error!(
+                                        "Unable to check predictions were sane, what the hell?"
+                                    ),
                                 }
                             }
                             Err(_e) => (),
                         }
                     }
+
+                    debug!(
+                        "Failed {} prediction regenerations for entity {}, using linear extrapolation",
+                        MAX_REGENERATION_ATTEMPTS, k
+                    );
+
+
                     // Screw it, use linear extrapolation.
                     Some(prediction::predict_entity(
                         state.clone(),
@@ -128,8 +156,6 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
     {
         debug!("Updating entity prediction caches");
         let mut entities = state.entities.write().await;
-        let history = state.history.read().await;
-        let mut anomalies = futures::executor::block_on(state.anomalies.write());
 
         // Cache the predictions.
         for i in predictions.iter() {
@@ -150,7 +176,7 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
         debug!("Updating entity positions");
 
         // Use the predictions to set the entity position.
-        entities.iter_mut().for_each(|(k, v)| {
+        entities.iter_mut().for_each(|(_, v)| {
             let current_time = chrono::offset::Utc::now();
 
             // Check the staleness of the next prediction.
@@ -182,37 +208,6 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                     // Update the position from the cached prediction.
                     v.position = interpolated_prediction.position;
                     v.prediction_kind = Some(e.kind);
-
-                    if !is_position_valid(v.position) {
-                        debug!(
-                            "Entity {} has invalid position {{{}, {}}}, kind {:?}",
-                            k, v.position.x, v.position.z, e.kind,
-                        );
-                    }
-
-                    let entity_history = history.get(k).expect("Missing entity id").clone();
-
-                    // Check for anomalies.
-                    if prediction::is_entity_in_anomalous_position(
-                        v.clone(),
-                        entity_history.history.clone(),
-                    ) {
-                        debug!("Detected position anomaly on entity {}", k);
-                        anomalies.push(Anomaly {
-                            entity_id: k.clone(),
-                            msg: "Anomalous position detected".to_owned(),
-                        });
-
-                        writer
-                            .serialize((
-                                k,
-                                v.position,
-                                v.prediction_cache.front().unwrap().position,
-                                v.prediction_cache.front().unwrap().error,
-                                v.num_stale_predictions,
-                            ))
-                            .expect("Failed to write csv");
-                    }
                 }
                 None => (),
             }
@@ -335,11 +330,93 @@ pub async fn new_player(state: State, stream: TcpStream, addr: SocketAddr) -> Re
     Ok(())
 }
 
-fn is_position_valid(position: Vec3) -> bool {
-    const MIN_X: f32 = -75.0;
-    const MAX_X: f32 = 163.0;
-    const MIN_Z: f32 = -70.31605;
-    const MAX_Z: f32 = -2.001192;
+fn are_predictions_sane(entity_id: String, state: State) -> Result<bool> {
+    const MAGIC: f32 = 5.0;
 
-    position.x >= MIN_X && position.x <= MAX_X && position.z >= MIN_Z && position.z <= MAX_Z
+    let history = futures::executor::block_on(state.history.read());
+    let entities = futures::executor::block_on(state.entities.read());
+    let entity_history = history.get(&entity_id).expect("Missing entity id");
+    let entity = entities
+        .get(&entity_id.clone())
+        .expect("Enable to find entity");
+
+    let history_x_min = entity_history
+        .history
+        .iter()
+        .map(|e| e.position.x)
+        .fold(f32::INFINITY, |a, b| a.min(b));
+
+    let history_x_max = entity_history
+        .history
+        .iter()
+        .map(|e| e.position.x)
+        .fold(f32::INFINITY, |a, b| a.max(b));
+
+    let history_z_min = entity_history
+        .history
+        .iter()
+        .map(|e| e.position.z)
+        .fold(f32::INFINITY, |a, b| a.min(b));
+
+    let history_z_max = entity_history
+        .history
+        .iter()
+        .map(|e| e.position.z)
+        .fold(f32::INFINITY, |a, b| a.max(b));
+
+    let predictions_x_min = entity
+        .prediction_cache
+        .iter()
+        .map(|e| e.position.x)
+        .fold(f32::INFINITY, |a, b| a.min(b));
+
+    let predictions_x_max = entity
+        .prediction_cache
+        .iter()
+        .map(|e| e.position.x)
+        .fold(f32::INFINITY, |a, b| a.max(b));
+
+    let predictions_z_min = entity
+        .prediction_cache
+        .iter()
+        .map(|e| e.position.z)
+        .fold(f32::INFINITY, |a, b| a.min(b));
+
+    let predictions_z_max = entity
+        .prediction_cache
+        .iter()
+        .map(|e| e.position.z)
+        .fold(f32::INFINITY, |a, b| a.max(b));
+
+    if (predictions_x_max - predictions_x_min) > MAGIC * (history_x_max - history_x_min)
+        && (predictions_z_max - predictions_z_min) > MAGIC * (history_z_max - history_z_min)
+    {
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
+fn detect_position_anomaly(
+    current_position: Vec3,
+    actual_position: Vec3,
+    error: Vec3,
+    staleness: i32,
+) -> bool {
+    const CONFIDENCE_INTERVAL_MULTIPLIER: f32 = 2.58;
+    const STEP_EXPONENT: f32 = 0.9;
+
+    let factor = (staleness as f32).powf(STEP_EXPONENT);
+    let bounds_x = CONFIDENCE_INTERVAL_MULTIPLIER * error.x * factor;
+    let bounds_z = CONFIDENCE_INTERVAL_MULTIPLIER * error.z * factor;
+
+    if actual_position.x >= (current_position.x - bounds_x)
+        && actual_position.x <= (current_position.x + bounds_x)
+        && actual_position.z >= (current_position.x - bounds_z)
+        && actual_position.z <= (current_position.x + bounds_z)
+    {
+        true
+    } else {
+        false
+    }
 }
