@@ -60,12 +60,19 @@ pub struct Player {
     pub position: Vec3,
     pub angles: Vec3,
     pub is_authenticated: bool,
+    pub did_send_auth_status: bool,
     pub username: String,
 }
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
 pub struct ClientUpdateData {
     pub position: Vec3,
     pub angles: Vec3,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ClientAuthData {
+    pub username: String,
+    pub password: String,
 }
 
 #[derive(Clone, Debug)]
@@ -90,15 +97,23 @@ pub struct ServerUpdateData {
     pub anomalies: Vec<Anomaly>,
 }
 
-#[derive(Copy, Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ServerAuthenticateResponseData {
+    pub success: bool,
+    pub msg: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum ClientMessage {
     Disconnect,
+    Authenticate(ClientAuthData),
     Update(ClientUpdateData),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum ServerMessage {
     Update(ServerUpdateData),
+    AuthenticateResponse(ServerAuthenticateResponseData),
 }
 
 pub type MessageFramed = Framed<
@@ -150,6 +165,7 @@ impl Player {
             position,
             angles,
             is_authenticated: false,
+            did_send_auth_status: false,
             username: "".to_owned(),
         }
     }

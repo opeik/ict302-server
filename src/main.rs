@@ -71,10 +71,10 @@ async fn game_loop(state: State) -> Result<()> {
 
         // Update all entities.
         game::advance_simulation(state.clone(), delta_time).await?;
-        // Send updates to players.
-        game::send_updates(state.clone()).await?;
         // Send updates from players.
         game::receive_updates(state.clone()).await?;
+        // Send updates to players.
+        game::send_updates(state.clone()).await?;
 
         let mut anomalies = state.anomalies.write().await;
         anomalies.clear();
