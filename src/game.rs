@@ -34,7 +34,7 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
 
                 match entity {
                     Some(e) => {
-                        let is_anomalous = detect_position_anomaly(
+                        let is_anomalous = is_position_anomalous(
                             e.position,
                             latest.position,
                             e.prediction_cache
@@ -44,13 +44,13 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                             e.num_stale_predictions,
                         );
 
-                        if is_anomalous {
-                            debug!("Detected position anomaly on entity {}", k);
-                            anomalies.push(Anomaly {
-                                entity_id: k.clone(),
-                                msg: "Anomalous position detected".to_owned(),
-                            });
-                        }
+                        //if is_anomalous {
+                        debug!("Detected position anomaly on entity {}", k);
+                        anomalies.push(Anomaly {
+                            entity_id: k.clone(),
+                            msg: "Anomalous position detected".to_owned(),
+                        });
+                        //}
                     }
                     None => {}
                 }
@@ -379,7 +379,7 @@ fn are_predictions_sane(entity_id: String, state: State) -> Result<bool> {
     }
 }
 
-fn detect_position_anomaly(
+fn is_position_anomalous(
     current_position: Vec3,
     actual_position: Vec3,
     error: Vec3,
@@ -392,16 +392,13 @@ fn detect_position_anomaly(
     let bounds_x = CONFIDENCE_INTERVAL_MULTIPLIER * error.x * factor;
     let bounds_z = CONFIDENCE_INTERVAL_MULTIPLIER * error.z * factor;
 
-    // SANITY CHECK, REMOVE!
-    return false;
-
     if actual_position.x >= (current_position.x - bounds_x)
         && actual_position.x <= (current_position.x + bounds_x)
         && actual_position.z >= (current_position.x - bounds_z)
         && actual_position.z <= (current_position.x + bounds_z)
     {
-        true
-    } else {
         false
+    } else {
+        true
     }
 }
