@@ -1,10 +1,7 @@
 use crate::types::*;
 
-use lazy_static::lazy_static;
-use rusqlite::{named_params, params, Connection, Row, NO_PARAMS};
-use tracing::{debug, error, info, warn};
-
-use std::path::Path;
+use rusqlite::{named_params, Connection};
+use tracing::info;
 
 const DB_PATH: &str = "ServerDB.db";
 

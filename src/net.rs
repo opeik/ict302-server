@@ -104,6 +104,7 @@ pub async fn receive_update(state: State, player_id: PlayerId) -> Result<()> {
                     match is_authenticated {
                         Ok(_) => {
                             player.is_authenticated = true;
+                            player.username = v.username.to_owned();
                             info!(
                                 "Player {} with name {} authenticated",
                                 player_id, v.username
