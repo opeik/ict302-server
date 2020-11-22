@@ -44,13 +44,13 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                             e.num_stale_predictions,
                         );
 
-                        //if is_anomalous {
-                        debug!("Detected position anomaly on entity {}", k);
-                        anomalies.push(Anomaly {
-                            entity_id: k.clone(),
-                            msg: "Anomalous position detected".to_owned(),
-                        });
-                        //}
+                        if is_anomalous {
+                            debug!("Detected position anomaly on entity {}", k);
+                            anomalies.push(Anomaly {
+                                entity_id: k.clone(),
+                                msg: "Anomalous position detected".to_owned(),
+                            });
+                        }
                     }
                     None => {}
                 }
