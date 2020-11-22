@@ -184,7 +184,7 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                     v.prediction_kind = Some(e.kind);
 
                     if !is_position_valid(v.position) {
-                        warn!(
+                        debug!(
                             "Entity {} has invalid position {{{}, {}}}, kind {:?}",
                             k, v.position.x, v.position.z, e.kind,
                         );
@@ -197,7 +197,7 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                         v.clone(),
                         entity_history.history.clone(),
                     ) {
-                        info!("Detected position anomaly on entity {}", k);
+                        debug!("Detected position anomaly on entity {}", k);
                         anomalies.push(Anomaly {
                             entity_id: k.clone(),
                             msg: "Anomalous position detected".to_owned(),

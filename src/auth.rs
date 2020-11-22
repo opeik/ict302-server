@@ -5,6 +5,7 @@ use tracing::info;
 
 const DB_PATH: &str = "ServerDB.db";
 
+#[derive(Clone, Debug)]
 pub struct UserDetails {
     username: String,
     id: i32,

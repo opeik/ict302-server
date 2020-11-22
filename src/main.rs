@@ -24,6 +24,7 @@ async fn main() -> Result<()> {
     // Setup the initial server state.
     let state = State::new();
 
+
     // Fetch the initial entity state from the API.
     match api::fetch_entities(state.clone(), Duration::days(2)).await {
         Ok(_) => info!("Fetched initial entity data from API"),
