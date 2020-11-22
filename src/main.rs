@@ -24,7 +24,6 @@ async fn main() -> Result<()> {
     // Setup the initial server state.
     let state = State::new();
 
-
     // Fetch the initial entity state from the API.
     match api::fetch_entities(state.clone(), Duration::days(2)).await {
         Ok(_) => info!("Fetched initial entity data from API"),
@@ -65,7 +64,7 @@ async fn game_loop(state: State) -> Result<()> {
         debug!("Game loop tick");
 
         // Fetch data.
-        match api::fetch_entities(state.clone(), Duration::minutes(2)).await {
+        match api::fetch_entities(state.clone(), Duration::minutes(1)).await {
             Ok(_) => info!("Fetched entity data from API"),
             Err(e) => error!("Failed to fetch data from API: {}", e),
         };

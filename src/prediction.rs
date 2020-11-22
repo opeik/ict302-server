@@ -122,13 +122,9 @@ pub fn interpolate_cached_prediction(
 
     crate::types::Prediction {
         position: Vec3::new(
-            spline_x
-                .clamped_sample(current_time.timestamp() as f64)
-                .unwrap(),
+            spline_x.sample(current_time.timestamp() as f64).unwrap(),
             0.0,
-            spline_z
-                .clamped_sample(current_time.timestamp() as f64)
-                .unwrap(),
+            spline_z.sample(current_time.timestamp() as f64).unwrap(),
         ),
         error: prediction.error,
         date_time: current_time,

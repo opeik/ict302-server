@@ -27,6 +27,8 @@ pub struct State {
     pub next_player_id: Arc<RwLock<PlayerId>>,
     pub anomalies: Arc<RwLock<Vec<Anomaly>>>,
     pub fetched_new_data: Arc<RwLock<bool>>,
+    pub id_linear: Arc<RwLock<String>>,
+    pub id_genetic: Arc<RwLock<String>>,
 }
 
 pub struct Connection {
@@ -133,6 +135,8 @@ impl State {
             next_player_id: Arc::new(RwLock::new(0)),
             anomalies: Arc::new(RwLock::new(Vec::new())),
             fetched_new_data: Arc::new(RwLock::new(false)),
+            id_linear: Arc::new(RwLock::new("".to_owned())),
+            id_genetic: Arc::new(RwLock::new("".to_owned())),
         }
     }
 }
