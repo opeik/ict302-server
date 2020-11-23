@@ -160,7 +160,7 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                         .get_mut(&entity_id.clone())
                         .expect("Enable to find entity");
 
-                    entity.last_predicted_position = entity_predictions.first().unwrap().position;
+                    entity.last_predicted_position = entity.position;
 
                     for e in entity_predictions {
                         entity.prediction_cache.push_back(e.clone());
@@ -186,11 +186,11 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
 
                 // The prediction is too old, remove it.
                 if current_time > prediction.date_time {
-                    let last_predicted_position = v
-                        .prediction_cache
+                    v.prediction_cache
                         .pop_front()
                         .expect("Prediction cache was empty?");
-                    v.last_predicted_position = last_predicted_position.position;
+
+                    v.last_predicted_position = v.position;
                     v.num_stale_predictions += 1;
                 }
             }
