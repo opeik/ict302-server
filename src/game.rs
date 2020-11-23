@@ -9,7 +9,7 @@ use std::cmp::Ordering;
 use tokio::{net::TcpStream, sync::RwLock};
 use tokio_serde::{formats::Json, Framed};
 use tokio_util::codec::{Framed as CodecFramed, LengthDelimitedCodec};
-use tracing::{debug, info};
+use tracing::{debug, error, info, warn};
 
 use std::net::SocketAddr;
 
@@ -105,10 +105,17 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                                     are_predictions_sane(k.clone(), state.clone(), predictions);
 
                                 match predictions_sane {
-                                    Ok(_) => {
-                                        return Some(result);
+                                    Ok(v) => {
+                                        if v {
+                                            return Some(result);
+                                        } else {
+                                            warn!(
+                                                "Entity {} failed prediction sanity check, retrying...",
+                                                k.clone()
+                                            );
+                                        }
                                     }
-                                    Err(_) => panic!(
+                                    Err(_) => error!(
                                         "Unable to check predictions were sane, what the hell?"
                                     ),
                                 }
@@ -118,6 +125,10 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                     }
 
                     // Screw it, use linear extrapolation.
+                    warn!(
+                        "Entity {} failed prediction 3 times, falling back to linear extrapolation",
+                        k.clone()
+                    );
                     Some(prediction::predict_entity(
                         state.clone(),
                         k.clone(),
