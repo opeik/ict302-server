@@ -1,4 +1,5 @@
 use std::fmt;
+use std::path::PathBuf;
 
 use crate::types::*;
 
@@ -12,8 +13,15 @@ use splines::{Interpolation, Key, Spline};
 use tracing::debug;
 
 lazy_static! {
+    static ref LIB_PATH: PathBuf = [
+        std::env::current_dir().unwrap(),
+        PathBuf::from("predictor.module")
+    ]
+    .iter()
+    .collect();
+    static ref OS_LIB_PATH: String = LIB_PATH.clone().into_os_string().into_string().unwrap();
     static ref PREDICTOR_LIB: Library =
-        Library::new("predictor.module").expect("Failed to load predictor library");
+        Library::new(OS_LIB_PATH.clone()).expect("Failed to load predictor library");
     static ref PREDICTOR_FN: PredictFn<'static> =
         unsafe { PREDICTOR_LIB.get(b"PredictTimeSeries").unwrap() };
 }
