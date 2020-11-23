@@ -65,7 +65,7 @@ pub fn set_last_player_position(username: &str, position: Vec3) -> Result<()> {
 
     let mut stmt = db.prepare(
         "update users
-        set lon = :x,
+        set long = :x,
             alt = :y,
             lat = :z
         where username = :username",
