@@ -334,7 +334,7 @@ fn are_predictions_sane(
     state: State,
     predictions: &Vec<Prediction>,
 ) -> Result<bool> {
-    const MAGIC: f32 = 3.0;
+    const MAGIC: f32 = 5.0;
 
     let history = futures::executor::block_on(state.history.read());
     let entities = futures::executor::block_on(state.entities.read());
@@ -395,8 +395,8 @@ fn are_predictions_sane(
         .max_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal))
         .unwrap();
 
-    if (predictions_x_max - predictions_x_min) > MAGIC * (history_x_max - history_x_min)
-        && (predictions_z_max - predictions_z_min) > MAGIC * (history_z_max - history_z_min)
+    if (predictions_x_max - predictions_x_min) < MAGIC * (history_x_max - history_x_min)
+        && (predictions_z_max - predictions_z_min) < MAGIC * (history_z_max - history_z_min)
     {
         Ok(true)
     } else {
