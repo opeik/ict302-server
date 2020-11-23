@@ -144,6 +144,9 @@ pub async fn reap_dead_connection(state: State, player_id: PlayerId, did_fail: b
         player_id
     );
 
+    let player = players.get(&player_id).ok_or("Player not found").unwrap();
+    auth::set_last_player_position(&player.username, player.position).unwrap();
+
     connections.remove(&player_id);
     players.remove(&player_id);
 }

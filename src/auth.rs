@@ -1,5 +1,6 @@
 use crate::types::*;
 
+use nalgebra_glm::Vec3;
 use rusqlite::{named_params, Connection};
 use tracing::info;
 
@@ -34,4 +35,48 @@ pub fn authenticate_user(username: &str, password: &str) -> Result<UserDetails> 
         username: username.to_owned(),
         id: id,
     })
+}
+
+pub fn get_last_player_position(username: &str) -> Result<Vec3> {
+    let db = Connection::open(&DB_PATH)?;
+    info!("Connected to database {:?}", DB_PATH);
+
+    let mut stmt = db.prepare(
+        "select lon, alt, lat
+        from users
+        where username = :username",
+    )?;
+
+    let mut rows = stmt.query_named(named_params! {
+        ":username": &username,
+    })?;
+
+    let row = rows.next()?.ok_or("Invalid credentials")?;
+    let x: f64 = row.get(0)?;
+    let y: f64 = row.get(1)?;
+    let z: f64 = row.get(2)?;
+
+    Ok(Vec3::new(x as f32, y as f32, z as f32))
+}
+
+pub fn set_last_player_position(username: &str, position: Vec3) -> Result<()> {
+    let db = Connection::open(&DB_PATH)?;
+    info!("Connected to database {:?}", DB_PATH);
+
+    let mut stmt = db.prepare(
+        "update users
+        set lon = :x,
+            alt = :y,
+            lat = :z
+        where username = :username",
+    )?;
+
+    let mut rows = stmt.execute_named(named_params! {
+        ":x": &(position.x as f64),
+        ":y": &(position.y as f64),
+        ":z": &(position.z as f64),
+        ":username": &username,
+    })?;
+
+    Ok(())
 }
