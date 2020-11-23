@@ -10,7 +10,7 @@ use libloading::{Library, Symbol};
 use nalgebra_glm::Vec3;
 use serde::{Deserialize, Serialize};
 use splines::{Interpolation, Key, Spline};
-use tracing::debug;
+use tracing::{debug, info};
 
 lazy_static! {
     static ref LIB_PATH: PathBuf = [
@@ -111,26 +111,28 @@ pub fn interpolate_cached_prediction(
 ) -> crate::types::Prediction {
     let start_time = (prediction.date_time - spacing).timestamp();
     let end_time = prediction.date_time.timestamp();
+    let duration = (end_time - start_time) as f64;
+    let progress = (current_time.timestamp() - start_time) as f64;
 
     let start_x = Key::new(
-        start_time as f64,
+        0.0,
         last_predicted_position.x * (SCALE_FACTOR as f32),
         Interpolation::Linear,
     );
     let end_x = Key::new(
-        end_time as f64,
+        duration,
         prediction.position.x * (SCALE_FACTOR as f32),
         Interpolation::default(),
     );
     let spline_x = Spline::from_vec(vec![start_x, end_x]);
 
     let start_z = Key::new(
-        start_time as f64,
+        0.0,
         last_predicted_position.z * (SCALE_FACTOR as f32),
         Interpolation::Linear,
     );
     let end_z = Key::new(
-        end_time as f64,
+        duration,
         prediction.position.z * (SCALE_FACTOR as f32),
         Interpolation::default(),
     );
@@ -139,15 +141,9 @@ pub fn interpolate_cached_prediction(
 
     crate::types::Prediction {
         position: Vec3::new(
-            spline_x
-                .clamped_sample(current_time.timestamp() as f64)
-                .unwrap()
-                / (SCALE_FACTOR as f32),
+            spline_x.clamped_sample(progress).unwrap() / (SCALE_FACTOR as f32),
             0.0,
-            spline_z
-                .clamped_sample(current_time.timestamp() as f64)
-                .unwrap()
-                / (SCALE_FACTOR as f32),
+            spline_z.clamped_sample(progress).unwrap() / (SCALE_FACTOR as f32),
         ),
         error: prediction.error,
         date_time: current_time,
