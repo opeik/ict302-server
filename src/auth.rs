@@ -71,7 +71,7 @@ pub fn set_last_player_position(username: &str, position: Vec3) -> Result<()> {
         where username = :username",
     )?;
 
-    let mut rows = stmt.execute_named(named_params! {
+    stmt.execute_named(named_params! {
         ":x": &(position.x as f64),
         ":y": &(position.y as f64),
         ":z": &(position.z as f64),

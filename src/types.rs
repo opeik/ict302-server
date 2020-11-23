@@ -101,6 +101,7 @@ pub struct ServerUpdateData {
 pub struct ServerAuthenticateResponseData {
     pub success: bool,
     pub msg: String,
+    pub position: Option<Vec3>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

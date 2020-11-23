@@ -2,6 +2,7 @@ use crate::auth;
 use crate::types::*;
 
 use futures::SinkExt;
+use nalgebra_glm::Vec3;
 use tokio::stream::StreamExt;
 use tracing::{debug, error, info};
 
@@ -31,9 +32,13 @@ pub async fn send_update(state: State, player_id: PlayerId) -> Result<()> {
 
             message = ServerMessage::Update(data);
         } else {
+            let last_position = auth::get_last_player_position(&player.username)
+                .unwrap_or(Vec3::new(0.0, 0.0, 0.0));
+
             let data = ServerAuthenticateResponseData {
                 success: true,
                 msg: "Logged in".to_owned(),
+                position: Some(last_position),
             };
 
             message = ServerMessage::AuthenticateResponse(data);
@@ -42,6 +47,7 @@ pub async fn send_update(state: State, player_id: PlayerId) -> Result<()> {
         let data = ServerAuthenticateResponseData {
             success: false,
             msg: "Invalid credentials".to_owned(),
+            position: None,
         };
 
         message = ServerMessage::AuthenticateResponse(data);
