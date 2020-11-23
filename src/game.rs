@@ -331,6 +331,10 @@ fn are_predictions_sane(
         .get(&entity_id.clone())
         .expect("Enable to find entity");
 
+    if history.len() < 2 || predictions.len() < 2 {
+        return Ok(false);
+    }
+
     let history_x_min = entity_history
         .history
         .iter()
