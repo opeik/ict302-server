@@ -106,7 +106,7 @@ const LINEAR_INTERPOLATION_ERROR: f32 = 10.0;
 pub fn interpolate_cached_prediction(
     prediction: crate::types::Prediction,
     spacing: Duration,
-    current_position: Vec3,
+    last_predicted_position: Vec3,
     current_time: DateTime<Utc>,
 ) -> crate::types::Prediction {
     let start_time = (prediction.date_time - spacing).timestamp();
@@ -114,7 +114,7 @@ pub fn interpolate_cached_prediction(
 
     let start_x = Key::new(
         start_time as f64,
-        current_position.x * (SCALE_FACTOR as f32),
+        last_predicted_position.x * (SCALE_FACTOR as f32),
         Interpolation::Linear,
     );
     let end_x = Key::new(
@@ -126,7 +126,7 @@ pub fn interpolate_cached_prediction(
 
     let start_z = Key::new(
         start_time as f64,
-        current_position.z * (SCALE_FACTOR as f32),
+        last_predicted_position.z * (SCALE_FACTOR as f32),
         Interpolation::Linear,
     );
     let end_z = Key::new(

@@ -42,6 +42,7 @@ pub struct History {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Entity {
     pub position: Vec3,
+    pub last_predicted_position: Vec3,
     pub angles: Vec3,
     pub velocity: Vec3,
     #[serde(skip_serializing)]
@@ -148,6 +149,7 @@ impl Entity {
     ) -> Self {
         Self {
             position,
+            last_predicted_position: Vec3::new(0.0, 0.0, 0.0),
             angles,
             velocity,
             date_time,
