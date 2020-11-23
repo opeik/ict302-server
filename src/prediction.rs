@@ -109,8 +109,8 @@ pub fn interpolate_cached_prediction(
     current_position: Vec3,
     current_time: DateTime<Utc>,
 ) -> crate::types::Prediction {
-    let start_time = prediction.date_time.timestamp();
-    let end_time = (prediction.date_time + spacing).timestamp();
+    let start_time = (prediction.date_time - spacing).timestamp();
+    let end_time = prediction.date_time.timestamp();
 
     let start_x = Key::new(
         start_time as f64,
@@ -179,8 +179,6 @@ pub fn predict_entity(
                 return Err(Box::from("Not enough history"));
             }
 
-            let current_time = chrono::offset::Utc::now();
-
             debug!("Predictions finished for entity {}", entity_id);
 
             let (predictions, error) = run_linear_extrapolation_prediction(
@@ -191,6 +189,7 @@ pub fn predict_entity(
                 spacing,
             )?;
 
+            let current_time = chrono::offset::Utc::now();
             let combined_predictions = predictions
                 .iter()
                 .enumerate()
@@ -228,7 +227,6 @@ pub fn predict_entity(
             if (history_duration.num_seconds() / spacing.num_seconds()) < min_history_points {
                 let entities = futures::executor::block_on(state.entities.read());
                 let entity = entities.get(&entity_id).ok_or("Entity not found")?;
-                let current_time = chrono::offset::Utc::now();
 
                 debug!("Predictions finished for entity {}", entity_id);
 
@@ -240,6 +238,7 @@ pub fn predict_entity(
                     spacing,
                 )?;
 
+                let current_time = chrono::offset::Utc::now();
                 let combined_predictions = predictions
                     .iter()
                     .enumerate()
