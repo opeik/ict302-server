@@ -42,9 +42,9 @@ pub fn get_last_player_position(username: &str) -> Result<Vec3> {
     info!("Connected to database {:?}", DB_PATH);
 
     let mut stmt = db.prepare(
-        "select lon, alt, lat
+        "select long, alt, lat
         from users
-        where username = :username",
+        where username = :username;",
     )?;
 
     let mut rows = stmt.query_named(named_params! {
@@ -55,8 +55,11 @@ pub fn get_last_player_position(username: &str) -> Result<Vec3> {
     let x: f64 = row.get(0)?;
     let y: f64 = row.get(1)?;
     let z: f64 = row.get(2)?;
+    let position = Vec3::new(x as f32, y as f32, z as f32);
 
-    Ok(Vec3::new(x as f32, y as f32, z as f32))
+    info!("Got player {} position {:?}", username, position);
+
+    Ok(position)
 }
 
 pub fn set_last_player_position(username: &str, position: Vec3) -> Result<()> {
@@ -68,7 +71,7 @@ pub fn set_last_player_position(username: &str, position: Vec3) -> Result<()> {
         set long = :x,
             alt = :y,
             lat = :z
-        where username = :username",
+        where username = :username;",
     )?;
 
     stmt.execute_named(named_params! {
