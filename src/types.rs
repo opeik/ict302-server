@@ -149,7 +149,7 @@ impl Entity {
     ) -> Self {
         Self {
             position,
-            last_predicted_position: Vec3::new(0.0, 0.0, 0.0),
+            last_predicted_position: position,
             angles,
             velocity,
             date_time,
