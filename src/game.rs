@@ -168,7 +168,7 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                     .expect("Empty prediction cache");
 
                 // The prediction is too old, remove it.
-                if prediction.date_time > current_time {
+                if current_time > prediction.date_time {
                     v.prediction_cache
                         .pop_front()
                         .expect("Prediction cache was empty?");
