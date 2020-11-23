@@ -91,7 +91,7 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
                             look_behind,
                             spacing,
                             num_predictions,
-                            prediction::PredictionKind::LinearExtrapolation,
+                            prediction::PredictionKind::GeneticAlgorithm,
                         );
 
                         // Check if the values are sane, if they aren't, try regenerating.
