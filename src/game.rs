@@ -5,6 +5,7 @@ use crate::types::*;
 use chrono::Duration;
 use nalgebra_glm::Vec3;
 use rayon::prelude::*;
+use std::cmp::Ordering;
 use tokio::{net::TcpStream, sync::RwLock};
 use tokio_serde::{formats::Json, Framed};
 use tokio_util::codec::{Framed as CodecFramed, LengthDelimitedCodec};
@@ -331,60 +332,56 @@ fn are_predictions_sane(
         .get(&entity_id.clone())
         .expect("Enable to find entity");
 
-    if history.len() < 2 || predictions.len() < 2 {
-        return Ok(false);
-    }
-
     let history_x_min = entity_history
         .history
         .iter()
         .map(|e| e.position.x)
-        .min_by(|a, b| a.partial_cmp(b).unwrap())
+        .min_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal))
         .unwrap();
 
     let history_x_max = entity_history
         .history
         .iter()
         .map(|e| e.position.x)
-        .max_by(|a, b| a.partial_cmp(b).unwrap())
+        .max_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal))
         .unwrap();
 
     let history_z_min = entity_history
         .history
         .iter()
         .map(|e| e.position.z)
-        .min_by(|a, b| a.partial_cmp(b).unwrap())
+        .min_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal))
         .unwrap();
 
     let history_z_max = entity_history
         .history
         .iter()
         .map(|e| e.position.z)
-        .max_by(|a, b| a.partial_cmp(b).unwrap())
+        .max_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal))
         .unwrap();
 
     let predictions_x_min = predictions
         .iter()
         .map(|e| e.position.x)
-        .min_by(|a, b| a.partial_cmp(b).unwrap())
+        .min_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal))
         .unwrap();
 
     let predictions_x_max = predictions
         .iter()
         .map(|e| e.position.x)
-        .max_by(|a, b| a.partial_cmp(b).unwrap())
+        .max_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal))
         .unwrap();
 
     let predictions_z_min = predictions
         .iter()
         .map(|e| e.position.z)
-        .min_by(|a, b| a.partial_cmp(b).unwrap())
+        .min_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal))
         .unwrap();
 
     let predictions_z_max = predictions
         .iter()
         .map(|e| e.position.z)
-        .max_by(|a, b| a.partial_cmp(b).unwrap())
+        .max_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal))
         .unwrap();
 
     if (predictions_x_max - predictions_x_min) > MAGIC * (history_x_max - history_x_min)
