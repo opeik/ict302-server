@@ -54,19 +54,24 @@ pub async fn fetch_entities(state: State, time_span: Duration) -> Result<()> {
     response.vessels.into_iter().for_each(|v| {
         let entity_id = v.id.to_string();
 
-        history
-            .entry(entity_id)
-            .or_insert(History {
-                was_updated: true,
-                history: vec![],
-            })
-            .history
-            .push(new_entity_from_vessel(&v));
-    });
+        let entity_history = history.entry(entity_id).or_insert(History {
+            was_updated: true,
+            history: vec![],
+        });
 
-    // Remove duplicates.
-    history.iter_mut().for_each(|(_, v)| {
-        v.history.dedup_by(|a, b| a.date_time == b.date_time);
+        let length_previous = entity_history.history.len();
+        // Add new history.
+        entity_history.history.push(new_entity_from_vessel(&v));
+        // Remove duplicates.
+        entity_history
+            .history
+            .dedup_by(|a, b| a.date_time == b.date_time);
+        let length_current = entity_history.history.len();
+
+        // Mark the history was updated.
+        if length_previous != length_current {
+            entity_history.was_updated = true;
+        }
     });
 
     // Sort the history by time.
