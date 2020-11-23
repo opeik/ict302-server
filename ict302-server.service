@@ -6,10 +6,10 @@ After=network.target ict302-mock-api.service
 [Service]
 Type=simple
 User=student
-Environment="RUST_LOG=info,warn"
+Environment="RUST_LOG=warn,info,debug"
 TTYPath=/dev/tty
 WorkingDirectory=/home/student/server
-ExecStart=/home/student/.cargo/bin/cargo run --release
+ExecStart=/home/student/server/target/release/server
 Restart=always
 
 [Install]
