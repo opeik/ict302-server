@@ -29,36 +29,39 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
         history.iter_mut().for_each(|(k, v)| {
             if v.was_updated {
                 v.was_updated = false;
-                let latest = v.history.last().unwrap();
-                let entity = entities.get(&k.clone());
 
-                match entity {
-                    Some(e) => {
-                        let is_anomalous = is_position_anomalous(
-                            e.position,
-                            latest.position,
-                            e.prediction_cache
-                                .front()
-                                .expect("Missing predictions")
-                                .error,
-                            e.num_stale_predictions,
-                        );
+                if v.history.len() > 1 {
+                    let latest = v.history.last().unwrap();
+                    let entity = entities.get(&k.clone());
 
-                        if is_anomalous {
-                            info!("Detected position anomaly on entity {}", k);
-                            anomalies.push(Anomaly {
-                                entity_id: k.clone(),
-                                msg: "Anomalous position detected".to_owned(),
-                            });
+                    match entity {
+                        Some(e) => {
+                            let is_anomalous = is_position_anomalous(
+                                e.position,
+                                latest.position,
+                                e.prediction_cache
+                                    .front()
+                                    .expect("Missing predictions")
+                                    .error,
+                                e.num_stale_predictions,
+                            );
+
+                            if is_anomalous {
+                                info!("Detected position anomaly on entity {}", k);
+                                anomalies.push(Anomaly {
+                                    entity_id: k.clone(),
+                                    msg: "Anomalous position detected".to_owned(),
+                                });
+                            }
                         }
+                        None => {}
                     }
-                    None => {}
-                }
 
-                entities
-                    .entry(k.clone())
-                    .and_modify(|e| *e = latest.clone())
-                    .or_insert(latest.clone());
+                    entities
+                        .entry(k.clone())
+                        .and_modify(|e| *e = latest.clone())
+                        .or_insert(latest.clone());
+                }
             }
         });
     }
