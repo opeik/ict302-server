@@ -311,7 +311,7 @@ pub async fn new_player(state: State, stream: TcpStream, addr: SocketAddr) -> Re
 }
 
 fn are_predictions_sane(entity_id: String, state: State) -> Result<bool> {
-    const MAGIC: f32 = 5.0;
+    const MAGIC: f32 = 3.0;
 
     let history = futures::executor::block_on(state.history.read());
     let entities = futures::executor::block_on(state.entities.read());
