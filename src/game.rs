@@ -99,9 +99,9 @@ pub async fn advance_simulation(state: State, _delta_time: Duration) -> Result<(
 
                         // Check if the values are sane, if they aren't, try regenerating.
                         match result {
-                            Ok((_, ref _predictions)) => {
+                            Ok((_, ref predictions)) => {
                                 let predictions_sane =
-                                    are_predictions_sane(k.clone(), state.clone());
+                                    are_predictions_sane(k.clone(), state.clone(), predictions);
 
                                 match predictions_sane {
                                     Ok(_) => {
@@ -317,7 +317,11 @@ pub async fn new_player(state: State, stream: TcpStream, addr: SocketAddr) -> Re
     Ok(())
 }
 
-fn are_predictions_sane(entity_id: String, state: State) -> Result<bool> {
+fn are_predictions_sane(
+    entity_id: String,
+    state: State,
+    predictions: &Vec<Prediction>,
+) -> Result<bool> {
     const MAGIC: f32 = 3.0;
 
     let history = futures::executor::block_on(state.history.read());
@@ -331,49 +335,53 @@ fn are_predictions_sane(entity_id: String, state: State) -> Result<bool> {
         .history
         .iter()
         .map(|e| e.position.x)
-        .fold(f32::INFINITY, |a, b| a.min(b));
+        .min_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
 
     let history_x_max = entity_history
         .history
         .iter()
         .map(|e| e.position.x)
-        .fold(f32::INFINITY, |a, b| a.max(b));
+        .max_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
 
     let history_z_min = entity_history
         .history
         .iter()
         .map(|e| e.position.z)
-        .fold(f32::INFINITY, |a, b| a.min(b));
+        .min_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
 
     let history_z_max = entity_history
         .history
         .iter()
         .map(|e| e.position.z)
-        .fold(f32::INFINITY, |a, b| a.max(b));
+        .max_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
 
-    let predictions_x_min = entity
-        .prediction_cache
+    let predictions_x_min = predictions
         .iter()
         .map(|e| e.position.x)
-        .fold(f32::INFINITY, |a, b| a.min(b));
+        .min_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
 
-    let predictions_x_max = entity
-        .prediction_cache
+    let predictions_x_max = predictions
         .iter()
         .map(|e| e.position.x)
-        .fold(f32::INFINITY, |a, b| a.max(b));
+        .max_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
 
-    let predictions_z_min = entity
-        .prediction_cache
+    let predictions_z_min = predictions
         .iter()
         .map(|e| e.position.z)
-        .fold(f32::INFINITY, |a, b| a.min(b));
+        .min_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
 
-    let predictions_z_max = entity
-        .prediction_cache
+    let predictions_z_max = predictions
         .iter()
         .map(|e| e.position.z)
-        .fold(f32::INFINITY, |a, b| a.max(b));
+        .max_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
 
     if (predictions_x_max - predictions_x_min) > MAGIC * (history_x_max - history_x_min)
         && (predictions_z_max - predictions_z_min) > MAGIC * (history_z_max - history_z_min)
@@ -402,8 +410,17 @@ fn is_position_anomalous(
         && actual_position.z >= (current_position.x - bounds_z)
         && actual_position.z <= (current_position.x + bounds_z)
     {
-        false
-    } else {
         true
+    } else {
+        false
     }
 }
+
+// fn clamp_position(position: Vec3) -> Vec3 {
+//     const X_MAX: f32 = 180.0;
+//     const X_MIN: f32 = -180.0;
+//     const Z_MAX: f32 = 90.0;
+//     const Z_MIN: f32 = -90.0;
+//
+//     return ;
+// }
